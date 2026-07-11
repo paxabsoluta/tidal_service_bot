@@ -53,12 +53,12 @@ class MinecraftStatus(commands.Cog):
             # Секция 3: Количество игроков
             players_online = status.players.online
             players_max = status.players.max
-            players_count_text = f"`{players_online}` / `{players_max}`"
+            players_count_text = f"`{players_online}`"
 
             # Секция 4: Список никнеймов игроков
             if players_online > 0 and status.players.sample:
                 player_list = [player.name for player in status.players.sample]
-                players_names_text = ", ".join(f"`{name}`" for name in player_list)
+                players_names_text = ", ".join(f"`{self.clean_minecraft_text(name)}`" for name in player_list)
             elif players_online > 0:
                 players_names_text = "ℹ️ _Сервер скрывает имена игроков_"
             else:
@@ -74,7 +74,12 @@ class MinecraftStatus(commands.Cog):
             embed.add_field(name="3. Игроков онлайн", value=players_count_text, inline=False)
             embed.add_field(name="4. Игроки на сервере", value=players_names_text, inline=False)
 
-            embed.set_footer(text=f"Версия: {version_clean} • Обновлено только что")
+            from datetime import datetime
+            current_time = datetime.now().strftime("%d.%m.%Y %H:%M")
+            embed.set_footer(
+                text=f"Tidal • all rights reserved © 2026 • {current_time}",
+                icon_url=self.bot.user.avatar.url if self.bot.user.avatar else None
+            )
 
             # Если идут тех. работы, подменяем MOTD на тот, что выдает плагин
             if is_maintenance:
