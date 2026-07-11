@@ -8,6 +8,13 @@ class MinecraftStatus(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    # Вспомогательная функция для удаления ВСЕХ цветовых кодов вроде §c, §4, §l
+    def clean_minecraft_text(self, text: str) -> str:
+            import re
+            if not text:
+                return ""
+            return re.sub(r'§.', '', text)
+
     @app_commands.command(name="status", description="Показывает детальный статус игрового сервера Minecraft")
     async def server_status(self, interaction: discord.Interaction):
         # 🔔 ВАЖНО: Замените на IP вашего сервера
@@ -23,19 +30,18 @@ class MinecraftStatus(commands.Cog):
             # Секция 1: Статус сервера (если ответил — значит включен)
             status_text = "🟢 **ВКЛЮЧЕН**"
 
-            # Очищаем MOTD от майнкрафтовских цветовых кодов (§4, §l) для проверки текста
-            motd_clean = status.description.to_plaintext() if hasattr(status.description, 'to_plaintext') else str(
+            # Очищаем MOTD и версию от майнкрафтовских цветовых кодов (§4, §l) для проверки текста
+            motd_raw = status.description.to_plaintext() if hasattr(status.description, 'to_plaintext') else str(
                 status.description)
+            motd_clean = self.clean_minecraft_text(motd_raw)
+            version_clean = self.clean_minecraft_text(status.version.name)
 
             # Секция 2: Статус тех.работ (Авто-определение)
-            # 🔔 НАСТРОЙКА: Напишите ниже слово или фразу из вашего Maintenance MOTD (в нижнем регистре)
-            # Например, если в config.yml плагина написано "Сервер на тех. работах", укажите "тех. работах"
-            MAINTENANCE_KEYWORD = "техническкие"
+            MAINTENANCE_KEYWORD = "техработы"
 
-            # Проверяем, включен ли режим тех. работ в плагине
-            # Плагин kennytv Maintenance также часто подменяет имя версии или возвращает специальный статус
+            # Проверяем наличие ключевого слова в MOTD или слова "ожидайте" в строке версии
             is_maintenance = (MAINTENANCE_KEYWORD in motd_clean.lower() or
-                              "maintenance" in status.version.name.lower())
+                              "ожидайте" in version_clean.lower())
 
             if is_maintenance:
                 maintenance_text = "⚠️ **ИДУТ** (Вход ограничен)"
@@ -68,7 +74,7 @@ class MinecraftStatus(commands.Cog):
             embed.add_field(name="3. Игроков онлайн", value=players_count_text, inline=False)
             embed.add_field(name="4. Игроки на сервере", value=players_names_text, inline=False)
 
-            embed.set_footer(text=f"Версия: {status.version.name} • Обновлено только что")
+            embed.set_footer(text=f"Версия: {version_clean} • Обновлено только что")
 
             # Если идут тех. работы, подменяем MOTD на тот, что выдает плагин
             if is_maintenance:
