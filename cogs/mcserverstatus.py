@@ -98,13 +98,13 @@ class MinecraftStatus(commands.Cog):
         except Exception:
             # Если сервер полностью выключен (хостинг майнкрафта остановлен)
             embed = discord.Embed(
-                title=f"⛏️ Статус сервера {SERVER_ADDRESS}",
+                title=f"🌊️️ Статус сервера {SERVER_ADDRESS}",
                 color=discord.Color.red()  # Красный цвет, если сервер выключен
             )
             embed.add_field(name="1. Статус сервера", value="🔴 **ВЫКЛЮЧЕН**", inline=False)
             embed.add_field(name="2. Технические работы", value="❓ **Неизвестно** (Сервер недоступен)", inline=False)
-            embed.add_field(name="3. Игроков онлайн", value="`0` / `0`", inline=False)
-            embed.add_field(name="4. Игроки на сервере", value="_Сервер офлайн_", inline=False)
+            embed.add_field(name="3. Игроков онлайн", value="-", inline=False)
+            embed.add_field(name="4. Игроки на сервере", value="-", inline=False)
 
             await interaction.followup.send(embed=embed)
 
