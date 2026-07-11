@@ -36,6 +36,12 @@ class MinecraftStatus(commands.Cog):
             motd_clean = self.clean_minecraft_text(motd_raw)
             version_clean = self.clean_minecraft_text(status.version.name)
 
+            # ПРОВЕРКА НА ЗАГЛУШКУ ХОСТИНГА (Если сервер реально выключен)
+            HOSTING_KEYWORDS = ["hosting-minecraft", "minecraft.pro", "сервер отключен", "offline", "вероятно", "hm proxy", "недоступен"]
+            is_hosting_fallback = any(word in motd_clean.lower() or word in version_clean.lower() for word in HOSTING_KEYWORDS)
+            if is_hosting_fallback:
+                raise ConnectionRefusedError("Заглушка Anycast")
+
             # Секция 2: Статус тех.работ (Авто-определение)
             MAINTENANCE_KEYWORD = "техработы"
 
@@ -48,7 +54,7 @@ class MinecraftStatus(commands.Cog):
                 embed_color = discord.Color.orange()  # Оранжевый цвет во время тех. работ
             else:
                 maintenance_text = "✅ **НЕ ИДУТ** (Сервер доступен для всех)"
-                embed_color = discord.Color.green()  # Зеленый цвет в обычном режиме
+                embed_color = discord.Color.teal()  # Зеленый цвет в обычном режиме
 
             # Секция 3: Количество игроков
             players_online = status.players.online
