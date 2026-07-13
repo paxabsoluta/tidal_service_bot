@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import io
+import chat_exporter
 
 # Константы настроек
 MAIN_CHANNEL_ID = 1473042971963166740
@@ -175,32 +176,39 @@ class TicketControlView(discord.ui.View):
             await interaction.followup.send("У вас нет прав для закрытия этого тикета.", ephemeral=True)
             return
 
-        await channel.send("💾 *Генерация транскрипта и закрытие канала...*")
+        await channel.send("💾 *Генерация HTML-транскрипта и закрытие канала...*")
 
-        transcript_text = f"=== ТРАНСКРИПТ ТИКЕТА: {channel.name} ===\n"
-        transcript_text += f"Закрыт пользователем: {interaction.user.name} ({interaction.user.id})\n"
-        transcript_text += "=========================================\n\n"
+        try:
+            # Генерация визуального лога HTML (лимит 500 сообщений)
+            transcript = await chat_exporter.export(channel, limit=500)
 
-        async for message in channel.history(limit=500, oldest_first=True):
-            time_str = message.created_at.strftime('%Y-%m-%d %H:%M:%S UTC')
-            content = message.clean_content if message.content else "[Вложения/Эмбед]"
-            transcript_text += f"[{time_str}] {message.author.name}: {content}\n"
+            if transcript is None:
+                await channel.send("⚠️ Не удалось сгенерировать транскрипт чата.")
+                return
 
-        file_data = io.BytesIO(transcript_text.encode('utf-8'))
-        transcript_file = discord.File(fp=file_data, filename=f"transcript-{channel.name}.txt")
+            # Формируем HTML файл в оперативной памяти проекта Tidal
+            file_data = io.BytesIO(transcript.encode('utf-8'))
+            transcript_file = discord.File(fp=file_data, filename=f"transcript-{channel.name}.html")
 
-        if log_channel and isinstance(log_channel, discord.TextChannel):
-            log_embed = discord.Embed(
-                title="🔒 Тикет закрыт",
-                description=f"Канал **{channel.name}** был успешно удален.\nЛог переписки прикреплен ниже.",
-                color=discord.Color.red()
-            )
-            log_embed.add_field(name="Кто закрыл", value=interaction.user.mention, inline=True)
-            if channel.topic:
-                log_embed.add_field(name="Информация", value=channel.topic, inline=False)
+            # Отправка лога в канал транскриптов
+            if log_channel and isinstance(log_channel, discord.TextChannel):
+                log_embed = discord.Embed(
+                    title="🔒 Тикет закрыт",
+                    description=f"Канал **{channel.name}** был успешно удален.\nВизуальный HTML-лог переписки прикреплен ниже.",
+                    color=discord.Color.red()
+                )
+                log_embed.add_field(name="Кто закрыл", value=interaction.user.mention, inline=True)
+                if channel.topic:
+                    log_embed.add_field(name="Информация", value=channel.topic, inline=False)
 
-            await log_channel.send(embed=log_embed, file=transcript_file)
+                await log_channel.send(embed=log_embed, file=transcript_file)
 
+        except Exception as e:
+            print(f"Ошибка при создании HTML-транскрипта: {e}")
+            if log_channel and isinstance(log_channel, discord.TextChannel):
+                await log_channel.send(f"⚠️ Ошибка создания HTML-лога для {channel.name}: `{e}`")
+
+        # Удаление канала тикета
         await channel.delete()
 
 
