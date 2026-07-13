@@ -201,50 +201,29 @@ class TicketControlView(discord.ui.View):
             # Создаем эмбед для канала логов
             log_embed = discord.Embed(
                 title="🔒 Тикет закрыт",
-                description=f"Канал **{channel.name}** был успешно удален.\nПолный лог переписки доступен ниже.",
+                description=f"Канал **{channel.name}** был успешно удален.\nПолный лог переписки доступен по кнопке ниже.",
                 color=discord.Color.red()
             )
             log_embed.add_field(name="Кто закрыл", value=interaction.user.mention, inline=True)
             if channel.topic:
                 log_embed.add_field(name="Информация", value=channel.topic, inline=False)
 
-            # Переменная для хранения ссылки на веб-версию
-            web_url = None
-
-            # Загружаем транскрипт на стабильный сервис просмотра HTML-логов Paste.ee
-            import aiohttp
-            async with aiohttp.ClientSession() as session:
-                payload = {
-                    "description": f"Transcript for {channel.name}",
-                    "sections": [
-                        {
-                            "name": "transcript.html",
-                            "contents": transcript
-                        }
-                    ]
-                }
-                data = {
-                    "key": "public",
-                    "description": payload["description"],
-                    "sections": payload["sections"]
-                }
-                async with session.post("https://paste.ee", json=data) as response:
-                    if response.status == 201 or response.status == 200:
-                        res_json = await response.json()
-                        paste_url = res_json.get("paste", {}).get("link")
-                        if paste_url:
-                            # Превращаем обычную ссылку на код в прямую веб-страницу
-                            web_url = paste_url.replace("paste.ee/p/", "paste.ee/r/")
-
-            # Создаем панель с синей кнопкой-ссылкой
-            view = discord.ui.View()
-            if web_url:
-                view.add_item(discord.ui.Button(label="Открыть в браузере", style=discord.ButtonStyle.link, url=web_url,
-                                                emoji="🌐"))
-
-            # Отправляем в лог-канал: эмбед, кнопку (если ссылка создалась) и сам файл для бэкапа
+            # Отправляем лог в канал транскриптов
             if log_channel and isinstance(log_channel, discord.TextChannel):
-                await log_channel.send(embed=log_embed, file=transcript_file, view=view)
+                # 1. Сначала отправляем сам HTML-файл, чтобы Discord сгенерировал для него постоянную ссылку
+                msg_with_file = await log_channel.send(file=transcript_file)
+
+                # 2. Вытаскиваем прямую интернет-ссылку на этот файл с серверов Discord
+                file_url = msg_with_file.attachments[0].url
+
+                # 3. Создаем красивую синюю кнопку, которая ведет на этот файл
+                view = discord.ui.View()
+                view.add_item(
+                    discord.ui.Button(label="Открыть в браузере", style=discord.ButtonStyle.link, url=file_url,
+                                      emoji="🌐"))
+
+                # 4. Отправляем эмбед вместе с этой кнопкой
+                await log_channel.send(embed=log_embed, view=view)
 
         except Exception as e:
             print(f"Ошибка при создании транскрипта: {e}")
