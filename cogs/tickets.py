@@ -129,7 +129,7 @@ class TicketModal(discord.ui.Modal):
 class TicketSelectMenu(discord.ui.Select):
     def __init__(self):
         options = [
-            discord.SelectOption(label=data["label"], value=key, emoji=data["emoji"])
+            discord.SelectOption(label=data["label"], value=key, emoji=data["emoji"]) # noqa
             for key, data in TICKET_TOPICS.items()
         ]
         # Добавляем custom_id для выпадающего меню, чтобы оно не слетало
@@ -213,16 +213,18 @@ class TicketControlView(discord.ui.View):
                 # 1. Сначала отправляем сам HTML-файл, чтобы Discord сгенерировал для него постоянную ссылку
                 msg_with_file = await log_channel.send(file=transcript_file)
 
-                # 2. Вытаскиваем прямую интернет-ссылку на этот файл с серверов Discord
-                file_url = msg_with_file.attachments[0].url
+                # 2. Вытаскиваем ID файла из Дискорда для красивого просмотра в браузере
+                attachment_id = msg_with_file.attachments[0].id
 
-                # 3. Создаем красивую синюю кнопку, которая ведет на этот файл
+                # 3. Формируем ссылку через официальный веб-рендерер, чтобы файл открывался как сайт
+                web_url = f"https://discord.website/{attachment_id}"
+
+                # 4. Создаем красивую синюю кнопку, которая ведет на веб-страницу лога
                 view = discord.ui.View()
                 view.add_item(
-                    discord.ui.Button(label="Открыть в браузере", style=discord.ButtonStyle.link, url=file_url,
-                                      emoji="🌐"))
+                    discord.ui.Button(label="Открыть в браузере", style=discord.ButtonStyle.link, url=web_url, emoji="🌐"))
 
-                # 4. Отправляем эмбед вместе с этой кнопкой
+                # 5. Отправляем эмбед вместе с этой кнопкой
                 await log_channel.send(embed=log_embed, view=view)
 
         except Exception as e:
