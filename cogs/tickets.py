@@ -211,18 +211,9 @@ class TicketControlView(discord.ui.View):
             if channel.topic:
                 log_embed.add_field(name="Информация", value=channel.topic, inline=False)
 
-            # Создаем панель с кнопкой-ссылкой
-            view = discord.ui.View()
-            if web_url:
-                # Если сайт успешно выдал ссылку, создаем красивую синюю кнопку перехода
-                view.add_item(discord.ui.Button(label="Открыть в браузере", style=discord.ButtonStyle.link, url=web_url,
-                                                emoji="🌐"))
-            else:
-                log_embed.description += "\n*(⚠️ Не удалось загрузить веб-версию, используйте прикрепленный файл)*"
-
-            # Отправляем в лог-канал: эмбед, кнопку-ссылку и сам файл на случай, если сайт ляжет
+            # Отправляем в лог-канал: только эмбед и сам файл .html
             if log_channel and isinstance(log_channel, discord.TextChannel):
-                await log_channel.send(embed=log_embed, file=transcript_file, view=view)
+                await log_channel.send(embed=log_embed, file=transcript_file)
 
         except Exception as e:
             print(f"Ошибка при создании транскрипта: {e}")
