@@ -162,126 +162,78 @@ class TicketStartView(discord.ui.View):
         self.add_item(TicketSelectMenu())
 
 
-class TicketCloseReasonModal(discord.ui.Modal):
-    def __init__(self, ticket_creator: discord.Member, channel: discord.TextChannel):
-        super().__init__(title="Закрытие тикета")
-        self.ticket_creator = ticket_creator
-        self.channel = channel
-
-        self.reason = discord.ui.TextInput(
-            label="Причина закрытия тикета",
-            style=discord.TextStyle.long,
-            placeholder="Например: Меры приняты / Вопрос решен...",
-            min_length=3,
-            max_length=500,
-            required=True
-        )
-        self.add_item(self.reason)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        # Откладываем ответ, так как генерация HTML и отправка ЛС требуют времени
-        await interaction.response.defer()
-
-        guild = interaction.guild
-        if not guild:
-            return
-
-        log_channel = guild.get_channel(TRANSCRIPT_CHANNEL_ID)
-
-        # 1. Сначала отправляем сообщение в ЛС игроку
-        try:
-            embed_dm = discord.Embed(
-                title="🔒 Ваш тикет закрыт",
-                description=f"Ваш тикет на сервере **{guild.name}** был успешно закрыт.",
-                color=discord.Color.from_rgb(100, 210, 210)
-            )
-            embed_dm.add_field(name="Причина закрытия", value=f"`{self.reason.value}`", inline=False)
-            embed_dm.set_footer(text="Спасибо за обращение в поддержку проекта Tidal!")
-
-            await self.ticket_creator.send(embed=embed_dm)
-        except discord.Forbidden:
-            # Если у игрока закрыты ЛС, бот не упадет, а продолжит работу
-            await self.channel.send(
-                "⚠️ *Не удалось отправить уведомление в ЛС игроку (у него закрыты личные сообщения).*")
-
-        # 2. Оповещаем модератора в чате тикета
-        await self.channel.send("💾 *Генерация HTML-транскрипта и архивация...*")
-
-        import chat_exporter
-        import io
-
-        # 3. Полный цикл архивации, который мы настроили ранее
-        try:
-            transcript = await chat_exporter.export(self.channel, limit=500, bot=interaction.client)
-
-            if transcript is not None:
-                file_data = io.BytesIO(transcript.encode('utf-8'))
-                transcript_file = discord.File(fp=file_data, filename=f"transcript-{self.channel.name}.html")
-
-                log_embed = discord.Embed(
-                    title="🔒 Тикет закрыт",
-                    description=f"Канал **{self.channel.name}** был успешно удален.",
-                    color=discord.Color.red()
-                )
-                log_embed.add_field(name="Кто закрыл", value=interaction.user.mention, inline=True)
-                log_embed.add_field(name="Причина", value=f"`{self.reason.value}`", inline=False)
-                if self.channel.topic:
-                    log_embed.add_field(name="Информация", value=self.channel.topic, inline=False)
-
-                if log_channel and isinstance(log_channel, discord.TextChannel):
-                    msg_with_file = await log_channel.send(file=transcript_file)
-                    file_url = msg_with_file.attachments[0].url
-                    web_url = f"https://github.io?{file_url}"
-
-                    view = discord.ui.View()
-                    view.add_item(
-                        discord.ui.Button(label="Открыть в браузере", style=discord.ButtonStyle.link, url=web_url,
-                                          emoji="🌐"))
-
-                    await log_channel.send(embed=log_embed, view=view)
-
-        except Exception as e:
-            print(f"Ошибка при создании транскрипта: {e}")
-            if log_channel and isinstance(log_channel, discord.TextChannel):
-                await log_channel.send(f"⚠️ Ошибка создания HTML-лога для {self.channel.name}: `{e}`")
-
-        # 4. Удаляем канал тикета
-        await self.channel.delete()
-
-
 class TicketControlView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
     @discord.ui.button(label="Закрыть тикет", style=discord.ButtonStyle.danger, custom_id="close_ticket_btn", emoji="🔒")
     async def close_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
-        channel = interaction.channel
-        if not channel or not isinstance(channel, discord.TextChannel):
-            return
+        await interaction.response.defer()
 
-        # Проверка прав: закрыть может только персонал
+        channel = interaction.channel
+        guild = interaction.guild
+        log_channel = guild.get_channel(TRANSCRIPT_CHANNEL_ID)
+
         is_staff = any(role.id in [ROLE_ADMIN, ROLE_MODER] for role in interaction.user.roles)
         is_creator = channel.overwrites_for(interaction.user).read_messages is True
 
         if not (is_staff or is_creator):
-            await interaction.response.send_message("У вас нет прав для закрытия этого тикета.", ephemeral=True)
+            await interaction.followup.send("У вас нет прав для закрытия этого тикета.", ephemeral=True)
             return
 
-        # Нам нужно найти создателя тикета. Мы вытащим его из прав доступа (overwrites) канала
-        ticket_creator = None
-        for target, overwrite in channel.overwrites.items():
-            if isinstance(target, discord.Member) and not target.bot:
-                # Если у обычного пользователя есть права отправлять сообщения — он создатель
-                if overwrite.read_messages is True:
-                    ticket_creator = target
-                    break
+        await channel.send("💾 *Генерация HTML-транскрипта и публикация в веб...*")
 
-        # Если создатель вышел с сервера или права сбились, подстрахуемся и укажем самого модератора
-        if not ticket_creator:
-            ticket_creator = interaction.user
+        import chat_exporter
+        import aiohttp
 
-        # Открываем модератору форму для ввода причины закрытия
-        await interaction.response.send_modal(TicketCloseReasonModal(ticket_creator, channel))
+        try:
+            # Генерация визуального лога HTML (лимит 500 сообщений)
+            transcript = await chat_exporter.export(channel, limit=500, bot=interaction.client)
+
+            if transcript is None:
+                await channel.send("⚠️ Не удалось сгенерировать транскрипт чата.")
+                return
+
+            # Создаем файл в оперативной памяти (для бэкапа в самом сообщении)
+            file_data = io.BytesIO(transcript.encode('utf-8'))
+            transcript_file = discord.File(fp=file_data, filename=f"transcript-{channel.name}.html")
+
+            # Создаем эмбед для канала логов
+            log_embed = discord.Embed(
+                title="🔒 Тикет закрыт",
+                description=f"Канал **{channel.name}** был успешно удален.\nПолный лог переписки доступен по кнопке ниже.",
+                color=discord.Color.red()
+            )
+            log_embed.add_field(name="Кто закрыл", value=interaction.user.mention, inline=True)
+            if channel.topic:
+                log_embed.add_field(name="Информация", value=channel.topic, inline=False)
+
+            # Отправляем лог в канал транскриптов
+            if log_channel and isinstance(log_channel, discord.TextChannel):
+                # 1. Сначала отправляем сам HTML-файл, чтобы Discord сгенерировал для него постоянную ссылку
+                msg_with_file = await log_channel.send(file=transcript_file)
+
+                # 2. Вытаскиваем прямую интернет-ссылку на этот файл с серверов Discord
+                file_url = msg_with_file.attachments[0].url
+
+                # 3. Пропускаем ссылку через вечный HTML-рендерер, чтобы файл открывался как сайт, а не скачивался
+                web_url = f"https://htmlpreview.github.io/?{file_url}"
+
+                # 4. Создаем красивую синюю кнопку, которая ведет на веб-страницу лога
+                view = discord.ui.View()
+                view.add_item(
+                    discord.ui.Button(label="Открыть в браузере", style=discord.ButtonStyle.link, url=web_url, emoji="🌐"))
+
+                # 5. Отправляем эмбед вместе с этой кнопкой
+                await log_channel.send(embed=log_embed, view=view)
+
+        except Exception as e:
+            print(f"Ошибка при создании транскрипта: {e}")
+            if log_channel and isinstance(log_channel, discord.TextChannel):
+                await log_channel.send(f"⚠️ Ошибка создания HTML-лога для {channel.name}: `{e}`")
+
+        # Удаление канала тикета
+        await channel.delete()
 
 
 class Tickets(commands.Cog):
