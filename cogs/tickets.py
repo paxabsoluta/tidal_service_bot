@@ -213,11 +213,11 @@ class TicketControlView(discord.ui.View):
                 # 1. Сначала отправляем сам HTML-файл, чтобы Discord сгенерировал для него постоянную ссылку
                 msg_with_file = await log_channel.send(file=transcript_file)
 
-                # 2. Вытаскиваем ID файла из Дискорда для красивого просмотра в браузере
-                attachment_id = msg_with_file.attachments[0].id
+                # 2. Вытаскиваем прямую интернет-ссылку на этот файл с серверов Discord
+                file_url = msg_with_file.attachments[0].url
 
-                # 3. Формируем ссылку через официальный веб-рендерер, чтобы файл открывался как сайт
-                web_url = f"https://discord.website/{attachment_id}"
+                # 3. Пропускаем ссылку через вечный HTML-рендерер, чтобы файл открывался как сайт, а не скачивался
+                web_url = f"https://htmlpreview.github.io/?{file_url}"
 
                 # 4. Создаем красивую синюю кнопку, которая ведет на веб-страницу лога
                 view = discord.ui.View()
