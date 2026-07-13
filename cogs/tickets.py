@@ -244,7 +244,7 @@ class Tickets(commands.Cog):
     async def on_ready(self):
         self.bot.add_view(TicketStartView())
         self.bot.add_view(TicketControlView())
-        print("Ког тикетов успешно запущен!")
+        print("Модуль тикетов успешно запущен!")
 
     @app_commands.command(name="setup_tickets", description="Отправить меню тикетов (Только для Администрации)")
     @app_commands.checks.has_any_role(ROLE_ADMIN)
@@ -263,15 +263,23 @@ class Tickets(commands.Cog):
 2. Выберите интересующую вас тему.
 3. Заполните появившуюся форму и нажмите «Отправить».
 
-*Наши специалисты ответят вам в созданном приватном канале в ближайшее время!*
+Мы ответим вам в созданном приватном канале в ближайшее время!
+
+> *Пожалуйста, выбирайте правильную тему для ускорения ответа.*
+> *Просим вас создавать тикеты только по действительно важным вопросам. Обращения по незначительным поводам могут быть проигнорированы или закрыты.*
+> *Не создавайте кучу тикетов по одному вопросу.*
+> *Все тикеты рассматриваются в порядке очереди.*
         """.strip()
 
         embed = discord.Embed(
-            title="📩 Техническая поддержка проекта Tidal",
+            title="📩 Тикеты ",
             description=ticket_description,
             color=discord.Color.from_rgb(100, 210, 210)
         )
-        embed.set_footer(text="Пожалуйста, выбирайте правильную тему для ускорения ответа.")
+        embed.set_footer(
+            text=f"Tidal • all rights reserved © 2026",
+            icon_url=self.bot.user.display_avatar.url
+        )
 
         await target_channel.send(embed=embed, view=TicketStartView())
         await interaction.response.send_message("Стартовое сообщение отправлено!", ephemeral=True)
