@@ -132,29 +132,32 @@ class TicketSelectMenu(discord.ui.Select):
             discord.SelectOption(label=data["label"], value=key, emoji=data["emoji"])
             for key, data in TICKET_TOPICS.items()
         ]
-        super().__init__(placeholder="Выберите тему вашего обращения...", min_values=1, max_values=1, options=options)
+        # Добавляем custom_id для выпадающего меню, чтобы оно не слетало
+        super().__init__(
+            placeholder="Выберите тему вашего обращения...",
+            min_values=1,
+            max_values=1,
+            options=options,
+            custom_id="ticket_select_menu_main"
+        )
 
     async def callback(self, interaction: discord.Interaction):
-        # Если ничего не выбрано, выходим (защита от ошибок)
         if not self.values:
             return
 
-        # Исправление: извлекаем чистую строку из списка выбранных значений
         topic_id = self.values[0]
 
-        # Защитная проверка существования темы в словаре
         if topic_id not in TICKET_TOPICS:
-            await interaction.response.send_message("Ошибка: Выбранная тема не найдена.", ephemeral=True)
+            await interaction.response.send_message("Ошибка: Тема не найдена.", ephemeral=True)
             return
 
         topic_data = TICKET_TOPICS[topic_id]
-
-        # Открываем форму игроку
         await interaction.response.send_modal(TicketModal(topic_id, topic_data))
 
 
 class TicketStartView(discord.ui.View):
     def __init__(self):
+        # timeout=None делает представление постоянным
         super().__init__(timeout=None)
         self.add_item(TicketSelectMenu())
 
