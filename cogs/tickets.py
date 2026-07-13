@@ -181,7 +181,10 @@ class TicketControlView(discord.ui.View):
             await interaction.followup.send("У вас нет прав для закрытия этого тикета.", ephemeral=True)
             return
 
-        await channel.send("💾 *Генерация HTML-транскрипта и закрытие канала...*")
+        await channel.send("💾 *Генерация HTML-транскрипта и публикация в веб...*")
+
+        import chat_exporter
+        import aiohttp
 
         try:
             # Генерация визуального лога HTML (лимит 500 сообщений)
@@ -191,25 +194,48 @@ class TicketControlView(discord.ui.View):
                 await channel.send("⚠️ Не удалось сгенерировать транскрипт чата.")
                 return
 
-            # Формируем HTML файл в оперативной памяти проекта Tidal
+            # Создаем файл в оперативной памяти (для бэкапа в самом сообщении)
             file_data = io.BytesIO(transcript.encode('utf-8'))
             transcript_file = discord.File(fp=file_data, filename=f"transcript-{channel.name}.html")
 
-            # Отправка лога в канал транскриптов
-            if log_channel and isinstance(log_channel, discord.TextChannel):
-                log_embed = discord.Embed(
-                    title="🔒 Тикет закрыт",
-                    description=f"Канал **{channel.name}** был успешно удален.\nВизуальный HTML-лог переписки прикреплен ниже.",
-                    color=discord.Color.red()
-                )
-                log_embed.add_field(name="Кто закрыл", value=interaction.user.mention, inline=True)
-                if channel.topic:
-                    log_embed.add_field(name="Информация", value=channel.topic, inline=False)
+            # Переменная для хранения ссылки на веб-версию
+            web_url = None
 
-                await log_channel.send(embed=log_embed, file=transcript_file)
+            # Загружаем транскрипт на бесплатный сервис просмотра логов chat-exporter
+            async with aiohttp.ClientSession() as session:
+                # Отправляем HTML-текст на сервис публикации логов
+                async with session.post("https://discord.website", data=transcript.encode('utf-8')) as response:
+                    if response.status == 200:
+                        res_json = await response.json()
+                        paste_id = res_json.get("id")
+                        if paste_id:
+                            web_url = f"https://discord.website{paste_id}"
+
+            # Создаем эмбед для канала логов
+            log_embed = discord.Embed(
+                title="🔒 Тикет закрыт",
+                description=f"Канал **{channel.name}** был успешно удален.\nПолный лог переписки доступен ниже.",
+                color=discord.Color.red()
+            )
+            log_embed.add_field(name="Кто закрыл", value=interaction.user.mention, inline=True)
+            if channel.topic:
+                log_embed.add_field(name="Информация", value=channel.topic, inline=False)
+
+            # Создаем панель с кнопкой-ссылкой
+            view = discord.ui.View()
+            if web_url:
+                # Если сайт успешно выдал ссылку, создаем красивую синюю кнопку перехода
+                view.add_item(discord.ui.Button(label="Открыть в браузере", style=discord.ButtonStyle.link, url=web_url,
+                                                emoji="🌐"))
+            else:
+                log_embed.description += "\n*(⚠️ Не удалось загрузить веб-версию, используйте прикрепленный файл)*"
+
+            # Отправляем в лог-канал: эмбед, кнопку-ссылку и сам файл на случай, если сайт ляжет
+            if log_channel and isinstance(log_channel, discord.TextChannel):
+                await log_channel.send(embed=log_embed, file=transcript_file, view=view)
 
         except Exception as e:
-            print(f"Ошибка при создании HTML-транскрипта: {e}")
+            print(f"Ошибка при создании транскрипта: {e}")
             if log_channel and isinstance(log_channel, discord.TextChannel):
                 await log_channel.send(f"⚠️ Ошибка создания HTML-лога для {channel.name}: `{e}`")
 
