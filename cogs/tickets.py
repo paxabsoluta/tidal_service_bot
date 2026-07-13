@@ -201,15 +201,25 @@ class TicketControlView(discord.ui.View):
             # Переменная для хранения ссылки на веб-версию
             web_url = None
 
-            # Загружаем транскрипт на бесплатный сервис просмотра логов chat-exporter
+            # Загружаем транскрипт на стабильный сервис просмотра HTML-логов
             async with aiohttp.ClientSession() as session:
-                # Отправляем HTML-текст на сервис публикации логов
-                async with session.post("https://discord.website", data=transcript.encode('utf-8')) as response:
-                    if response.status == 200:
+                payload = {
+                    "description": f"Transcript for {channel.name}",
+                    "sections": [
+                        {
+                            "name": "transcript.html",
+                            "contents": transcript
+                        }
+                    ]
+                }
+                async with session.post("https://paste.ee", json=payload, headers={
+                    "X-Auth-Token": "u6AL0v6X2b6HwD1G2LwVv9Rz5T8N7q4mB3fC1xY0" if False else "public"}) as response:
+                    if response.status == 201 or response.status == 200:
                         res_json = await response.json()
-                        paste_id = res_json.get("id")
-                        if paste_id:
-                            web_url = f"https://discord.website{paste_id}"
+                        paste_url = res_json.get("paste", {}).get("link")
+                        if paste_url:
+                            # Получаем прямую веб-ссылку на отрендеренный HTML
+                            web_url = paste_url.replace("paste.ee/p/", "paste.ee/r/")
 
             # Создаем эмбед для канала логов
             log_embed = discord.Embed(
