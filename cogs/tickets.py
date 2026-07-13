@@ -188,7 +188,7 @@ class TicketControlView(discord.ui.View):
 
         try:
             # Генерация визуального лога HTML (лимит 500 сообщений)
-            transcript = await chat_exporter.export(channel, limit=500)
+            transcript = await chat_exporter.export(channel, limit=500, bot=interaction.client)
 
             if transcript is None:
                 await channel.send("⚠️ Не удалось сгенерировать транскрипт чата.")
@@ -200,26 +200,6 @@ class TicketControlView(discord.ui.View):
 
             # Переменная для хранения ссылки на веб-версию
             web_url = None
-
-            # Загружаем транскрипт на стабильный сервис просмотра HTML-логов
-            async with aiohttp.ClientSession() as session:
-                payload = {
-                    "description": f"Transcript for {channel.name}",
-                    "sections": [
-                        {
-                            "name": "transcript.html",
-                            "contents": transcript
-                        }
-                    ]
-                }
-                async with session.post("https://paste.ee", json=payload, headers={
-                    "X-Auth-Token": "u6AL0v6X2b6HwD1G2LwVv9Rz5T8N7q4mB3fC1xY0" if False else "public"}) as response:
-                    if response.status == 201 or response.status == 200:
-                        res_json = await response.json()
-                        paste_url = res_json.get("paste", {}).get("link")
-                        if paste_url:
-                            # Получаем прямую веб-ссылку на отрендеренный HTML
-                            web_url = paste_url.replace("paste.ee/p/", "paste.ee/r/")
 
             # Создаем эмбед для канала логов
             log_embed = discord.Embed(
