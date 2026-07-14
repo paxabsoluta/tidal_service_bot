@@ -336,6 +336,20 @@ class ApplicationsCog(commands.Cog):
         await channel.send(embed=embed, view=StartButtonView())
         await interaction.response.send_message("Стартовое сообщение успешно создано в канале!", ephemeral=True)
 
+    # Скрытая слэш-команда для полной очистки данных игрока в базе
+    @app_commands.command(name="reset_user",
+                          description="Очистить данные игрока в базе заявок, чтобы он мог подать её снова")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def reset_user(self, interaction: discord.Interaction, user: discord.User):
+        async with aiosqlite.connect("apps_database.db") as db:
+            # Удаляем все записи, связанные с этим ID пользователя
+            await db.execute("DELETE FROM apps WHERE user_id = ?", (user.id,))
+            await db.commit()
+
+        await interaction.response.send_message(
+            f"✅ Данные пользователя {user.mention} успешно удалены из базы. Он может подавать заявку снова!",
+            ephemeral=True)
+
 
 async def setup(bot):
     await bot.add_cog(ApplicationsCog(bot))
