@@ -1,0 +1,328 @@
+import discord
+from discord.ext import commands
+from discord import app_commands
+import aiosqlite
+
+# ==================== НАСТРОЙКИ КОГА ====================
+CONFIG = {
+    "ROLE_DOSTUP_ID": 1479100141230358598,  # ID роли "доступ"
+    "ROLE_MEMBER_ID": 1459994385289711828,  # ID роли "Member"
+    "ROLE_DENIED_ID": 1474438745716555951,  # ID роли "Отказано"
+
+    "CHANNEL_START_ID": 1459994385738629435,  # Канал с кнопкой "Подать заявку"
+    "CHANNEL_ACTIVE_ID": 1526615816471318528,  # Приватный канал активных заявок
+    "CHANNEL_ARCHIVE_ID": 1526615869700968609,  # Канал-архив закрытых заявок
+}
+
+
+# ========================================================
+
+class StartButtonView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Подать заявку", style=discord.ButtonStyle.green, custom_id="start_app_btn")
+    async def start_app(self, interaction: discord.Interaction, button: discord.ui.Button):
+        async with aiosqlite.connect("apps_database.db") as db:
+            async with db.execute("SELECT 1 FROM apps WHERE user_id = ?", (interaction.user.id,)) as cursor:
+                if await cursor.fetchone():
+                    return await interaction.response.send_message(
+                        "Вы уже подали заявку или у вас есть роль 'Отказано'.", ephemeral=True)
+
+        await interaction.response.send_modal(ApplicationModal())
+
+
+class ApplicationModal(discord.ui.Modal, title="Анкета на сервер Minecraft"):
+    nickname = discord.ui.TextInput(label="Ваш никнейм в Minecraft?", placeholder="Пример: Steve", max_length=16)
+    age = discord.ui.TextInput(label="Ваш реальный возраст?", placeholder="Пример: 18", max_length=3)
+    source = discord.ui.TextInput(label="Откуда узнали про нас?", style=discord.TextStyle.short)
+    friends = discord.ui.TextInput(label="Есть ли на проекте ваши друзья/знакомые?", placeholder="Нет/Да, [Никнеймы]", required=False)
+    about = discord.ui.TextInput(label="Расскажите подробно про себя и свои планы", style=discord.TextStyle.paragraph,
+                                 max_length=1000)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+        active_channel = guild.get_channel(CONFIG["CHANNEL_ACTIVE_ID"])
+        if not active_channel:
+            return await interaction.followup.send("Ошибка: Канал заявок не найден.", ephemeral=True)
+
+        embed = discord.Embed(title=f"Новая заявка от {interaction.user.name}", color=discord.Color.blue())
+        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        embed.add_field(name="1. Никнейм в Minecraft:", value=self.nickname.value, inline=False)
+        embed.add_field(name="2. Возраст:", value=self.age.value, inline=False)
+        embed.add_field(name="3. Откуда узнали:", value=self.source.value, inline=False)
+        embed.add_field(name="4. Друзья:", value=self.friends.value or "Нет", inline=False)
+        embed.add_field(name="5. О себе и планах:", value=self.about.value, inline=False)
+        embed.set_footer(text=f"ID Пользователя: {interaction.user.id}")
+
+        view = ModeratorActionView()
+        msg = await active_channel.send(embed=embed, view=view)
+
+        async with aiosqlite.connect("apps_database.db") as db:
+            await db.execute("INSERT INTO apps (message_id, user_id, mc_name) VALUES (?, ?, ?)",
+                             (msg.id, interaction.user.id, self.nickname.value))
+            await db.commit()
+        await interaction.followup.send("Ваша заявка успешно отправлена!", ephemeral=True)
+
+
+class RefusalReasonModal(discord.ui.Modal, title="Причина отклонения"):
+    reason = discord.ui.TextInput(label="Укажите причину (увидит игрок):", style=discord.TextStyle.paragraph,
+                                  max_length=500)
+
+    def __init__(self, applicant: discord.Member, old_embed: discord.Embed, msg: discord.Message):
+        super().__init__()
+        self.applicant = applicant
+        self.old_embed = old_embed
+        self.msg = msg
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        try:
+            soft_deny_embed = discord.Embed(
+                title="🧧 Анкета",
+                description=(
+                    f"Есть новости для вас\n"
+                    f"Ваша анкета была рассмотрена и **отклонена** по следующей причине:\n\n"
+                    f"> **{self.reason.value}**\n\n"
+                    f"Не расстраивайтесь – у вас есть возможность исправить ошибки и заполнить её еще раз."
+                ),
+                color=discord.Color.from_rgb(47, 49, 54)
+            )
+            soft_deny_embed.set_footer(
+                text=f"Tidal • All rights reserved © 2026",
+                icon_url=interaction.client.user.display_avatar.url
+            )
+            await self.applicant.send(embed=soft_deny_embed)
+        except discord.Forbidden:
+            pass
+
+        archive_channel = interaction.guild.get_channel(CONFIG["CHANNEL_ARCHIVE_ID"])
+        if archive_channel:
+            # Извлекаем первый эмбед из списка и создаем на его основе копию с новым цветом
+            old_embed = self.old_embed[0] if isinstance(self.old_embed, list) else self.old_embed
+
+            archive_embed = discord.Embed(
+                title=f"❌ Отклонено (с переподачей) — Модератор: {interaction.user.name}",
+                description=old_embed.description,
+                color=discord.Color.orange()
+            )
+            # Копируем все поля из старой анкеты в архивную заявку
+            for field in old_embed.fields:
+                archive_embed.add_field(name=field.name, value=field.value, inline=field.inline)
+
+            # Добавляем причину отказа отдельным полем
+            archive_embed.add_field(name="Причина отказа:", value=self.reason.value, inline=False)
+            if old_embed.thumbnail:
+                archive_embed.set_thumbnail(url=old_embed.thumbnail.url)
+
+            await archive_channel.send(embed=archive_embed)
+
+        async with aiosqlite.connect("apps_database.db") as db:
+            await db.execute("DELETE FROM apps WHERE message_id = ?", (self.msg.id,))
+            await db.commit()
+
+        await self.msg.delete()
+        await interaction.followup.send("Заявка отклонена.", ephemeral=True)
+
+
+class ModeratorActionView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Принять", style=discord.ButtonStyle.green, custom_id="app_approve")
+    async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+
+        async with aiosqlite.connect("apps_database.db") as db:
+            async with db.execute("SELECT user_id, mc_name FROM apps WHERE message_id = ?",
+                                  (interaction.message.id,)) as cursor:
+                row = await cursor.fetchone()
+                if not row: return await interaction.followup.send("Заявка не найдена в базе данных.", ephemeral=True)
+                applicant_id, mc_nickname = row
+
+        member = guild.get_member(applicant_id)
+        if not member: return await interaction.followup.send("Игрок вышел с Discord-сервера.", ephemeral=True)
+
+        role_dostup = guild.get_role(CONFIG["ROLE_DOSTUP_ID"])
+        role_member = guild.get_role(CONFIG["ROLE_MEMBER_ID"])
+
+        # Проверяем, что роль "доступ" существует на сервере и она есть у игрока
+        if role_dostup and role_dostup in member.roles:
+            await member.remove_roles(role_dostup)
+
+        # Проверяем, что роль "Member" существует на сервере
+        if role_member:
+            await member.add_roles(role_member)
+
+        try:
+            await member.edit(nick=mc_nickname)
+        except discord.Forbidden:
+            pass
+
+        try:
+            accept_embed = discord.Embed(
+                title="🧧 Анкета",
+                description=(
+                    f"Есть новости для вас!\n"
+                    f"Ваша анкета была рассмотрена и **одобрена**. Вы были добавлены на сервер.\n\n"
+                    f"**Информация:** https://discord.com/channels/1459994384899637425/1459994385738629434 \n\n"
+                    f"Приятной игры на сервере!"
+                ),
+                color=discord.Color.from_rgb(47, 49, 54)
+            )
+            accept_embed.set_footer(
+                text=f"Tidal • All rights reserved © 2026",
+                icon_url=interaction.client.user.display_avatar.url
+            )
+            await member.send(embed=accept_embed)
+        except discord.Forbidden:
+            pass
+
+        archive_channel = guild.get_channel(CONFIG["CHANNEL_ARCHIVE_ID"])
+        if archive_channel and interaction.message.embeds:
+            # Берем оригинальный эмбед заявки
+            old_embed = interaction.message.embeds[0]
+
+            # Создаем на его основе новый архивный эмбед с зеленым цветом
+            archive_embed = discord.Embed(
+                title=f"✅ Принято — Модератор: {interaction.user.name}",
+                description=old_embed.description,
+                color=discord.Color.green()
+            )
+            # Переносим все ответы игрока
+            for field in old_embed.fields:
+                archive_embed.add_field(name=field.name, value=field.value, inline=field.inline)
+
+            if old_embed.thumbnail:
+                archive_embed.set_thumbnail(url=old_embed.thumbnail.url)
+
+            await archive_channel.send(embed=archive_embed)
+
+        await interaction.message.delete()
+        await interaction.followup.send("Игрок успешно принят!", ephemeral=True)
+
+    @discord.ui.button(label="Отклонить (Переподача)", style=discord.ButtonStyle.blurple, custom_id="app_soft_deny")
+    async def soft_deny(self, interaction: discord.Interaction, button: discord.ui.Button):
+        guild = interaction.guild
+        async with aiosqlite.connect("apps_database.db") as db:
+            async with db.execute("SELECT user_id FROM apps WHERE message_id = ?", (interaction.message.id,)) as cursor:
+                row = await cursor.fetchone()
+                if not row: return await interaction.response.send_message("Заявка не найдена.", ephemeral=True)
+                applicant_id = row[0]
+
+        member = guild.get_member(applicant_id)
+        if not member: return await interaction.response.send_message("Игрок вышел.", ephemeral=True)
+        if not interaction.message: return await interaction.response.send_message("Сообщение не найдено.",
+                                                                                   ephemeral=True)
+
+        await interaction.response.send_modal(
+            RefusalReasonModal(member, interaction.message.embeds[0], interaction.message)
+        )
+
+    @discord.ui.button(label="Отклонить (Насовсем)", style=discord.ButtonStyle.red, custom_id="app_hard_deny")
+    async def hard_deny(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+        async with aiosqlite.connect("apps_database.db") as db:
+            async with db.execute("SELECT user_id FROM apps WHERE message_id = ?", (interaction.message.id,)) as cursor:
+                row = await cursor.fetchone()
+                if not row: return await interaction.followup.send("Заявка не найдена.", ephemeral=True)
+                applicant_id = row[0]
+
+        member = guild.get_member(applicant_id)
+        if not member: return await interaction.followup.send("Игрок вышел.", ephemeral=True)
+
+        role_dostup = guild.get_role(CONFIG["ROLE_DOSTUP_ID"])
+        role_denied = guild.get_role(CONFIG["ROLE_DENIED_ID"])
+
+        # Безопасно снимаем роль "доступ" (убирает желтое предупреждение)
+        if role_dostup and role_dostup in member.roles:
+            await member.remove_roles(role_dostup)
+
+        # Безопасно выдаем роль "Отказано" (убирает желтое предупреждение)
+        if role_denied:
+            await member.add_roles(role_denied)
+
+        try:
+            hard_deny_embed = discord.Embed(
+                title="🧧 Анкета",
+                description=(
+                    f"Есть новости для вас!\n"
+                    f"Ваша анкета была рассмотрена и **отклонена без возможности повторного заполнения**.\n\n"
+                    f"Не расстраивайтесь – вы можете купить платное добавление на сервер без заполнения анкеты.\n"
+                ),
+                color=discord.Color.from_rgb(47, 49, 54)
+            )
+            hard_deny_embed.set_footer(
+                text=f"{guild.name} • All rights reserved © 2026",
+                icon_url=interaction.client.user.display_avatar.url
+            )
+            await member.send(embed=hard_deny_embed)
+        except discord.Forbidden:
+            pass
+
+        archive_channel = guild.get_channel(CONFIG["CHANNEL_ARCHIVE_ID"])
+        if archive_channel and interaction.message and interaction.message.embeds:
+            # Берем оригинальный эмбед анкеты
+            old_embed = interaction.message.embeds[0]
+
+            # Создаем правильную копию для архива с красным цветом (исправляет ошибку с .color)
+            archive_embed = discord.Embed(
+                title=f"⛔ Перманентный отказ — Модератор: {interaction.user.name}",
+                description=old_embed.description,
+                color=discord.Color.red()
+            )
+            # Переносим все ответы кандидата в новое сообщение для архива
+            for field in old_embed.fields:
+                archive_embed.add_field(name=field.name, value=field.value, inline=field.inline)
+
+            if old_embed.thumbnail:
+                archive_embed.set_thumbnail(url=old_embed.thumbnail.url)
+
+            await archive_channel.send(embed=archive_embed)
+
+        await interaction.message.delete()
+        await interaction.followup.send("Игроку выдан вечный отказ.", ephemeral=True)
+
+
+class ApplicationsCog(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        async with aiosqlite.connect("apps_database.db") as db:
+            await db.execute(
+                "CREATE TABLE IF NOT EXISTS apps (message_id INTEGER PRIMARY KEY, user_id INTEGER, mc_name TEXT)")
+            await db.commit()
+
+        self.bot.add_view(StartButtonView())
+        self.bot.add_view(ModeratorActionView())
+        print("Ког заявок успешно загружен, все кнопки зарегистрированы!")
+
+    # Теперь это красивая слэш-команда /setup_apps
+    @app_commands.command(name="setup_apps", description="Создать стартовое сообщение с кнопкой подачи заявки")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def setup_apps(self, interaction: discord.Interaction):
+        # Так как это слэш-команда, вместо ctx мы используем interaction
+        channel = interaction.guild.get_channel(CONFIG["CHANNEL_START_ID"])
+        if not channel:
+            return await interaction.response.send_message("Стартовый канал не найден.", ephemeral=True)
+
+        embed = discord.Embed(
+            title="📋 Подача заявки на сервер",
+            description="Добро пожаловать! Чтобы попасть на наш сервер, нажмите на кнопку ниже и заполните анкету.",
+            color=discord.Color.gold()
+        )
+        embed.set_footer(
+            text="Tidal • all rights reserved © 2026",
+            icon_url=self.bot.user.display_avatar.url
+        )
+        await channel.send(embed=embed, view=StartButtonView())
+        await interaction.response.send_message("Стартовое сообщение успешно создано в канале!", ephemeral=True)
+
+
+async def setup(bot):
+    await bot.add_cog(ApplicationsCog(bot))

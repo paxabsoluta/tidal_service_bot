@@ -3,3 +3,4 @@ python-dotenv
 mcstatus
 pytz
 chat-exporter
+aiosqlite
