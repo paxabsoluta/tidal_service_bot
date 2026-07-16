@@ -33,12 +33,11 @@ class StartButtonView(discord.ui.View):
 
 
 class ApplicationModal(discord.ui.Modal, title="Анкета на сервер Minecraft"):
-    nickname = discord.ui.TextInput(label="Ваш никнейм в Minecraft?", placeholder="Пример: Steve", max_length=16)
-    age = discord.ui.TextInput(label="Ваш реальный возраст?", placeholder="Пример: 18", max_length=3)
-    source = discord.ui.TextInput(label="Откуда узнали про нас?", style=discord.TextStyle.short)
-    friends = discord.ui.TextInput(label="Есть ли на проекте ваши друзья/знакомые?", placeholder="Нет/Да, [Никнеймы]", required=False)
-    about = discord.ui.TextInput(label="Расскажите подробно про себя и свои планы", style=discord.TextStyle.paragraph,
-                                 max_length=1000)
+    nickname = discord.ui.TextInput(label="Ваш никнейм в Minecraft?", placeholder="Пример: Steve", min_length=3, max_length=16)
+    age = discord.ui.TextInput(label="Ваш реальный возраст?", placeholder="Пример: 18", min_length=2, max_length=3)
+    source = discord.ui.TextInput(label="Откуда узнали про нас?", placeholder="TikTok, YouTube, ...", style=discord.TextStyle.short)
+    friends = discord.ui.TextInput(label="Есть ли тут ваши друзья? Назовите их", placeholder="Пропустите, если нет", required=False)
+    about = discord.ui.TextInput(label="Расскажите подробно про себя и свои планы", style=discord.TextStyle.paragraph, min_length=150, max_length=1000)
 
     async def on_submit(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -53,7 +52,7 @@ class ApplicationModal(discord.ui.Modal, title="Анкета на сервер M
             color=discord.Color.blue()
         )
         embed.set_thumbnail(url=interaction.user.display_avatar.url)
-        embed.add_field(name="1. Никнейм в Minecraft:", value=self.nickname.value, inline=False)
+        embed.add_field(name="1. Ник в Minecraft:", value=f"```{self.nickname.value}```", inline=False)
         embed.add_field(name="2. Возраст:", value=self.age.value, inline=False)
         embed.add_field(name="3. Откуда узнали:", value=self.source.value, inline=False)
         embed.add_field(name="4. Друзья:", value=self.friends.value or "Нет", inline=False)
@@ -393,7 +392,7 @@ class ApplicationsCog(commands.Cog):
         embed = discord.Embed(
             title="📋 Подача заявки на сервер",
             description="Добро пожаловать! Чтобы попасть на наш сервер, нажмите на кнопку ниже и заполните анкету.",
-            color=discord.Color.gold()
+            color=discord.Color.from_rgb(100, 210, 210)
         )
         embed.set_footer(
             text="Tidal • all rights reserved © 2026",
