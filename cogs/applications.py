@@ -229,15 +229,15 @@ class ModeratorActionView(discord.ui.View):
             accept_embed = discord.Embed(
                 title="🧧 Анкета",
                 description=(
-                    f"Добрый день. Проверяющий вашу анкету является администратором сервера.\n"
+                    f"Есть новости для вас!\n"
                     f"Ваша анкета была рассмотрена и **одобрена**. Вы были добавлены на сервер.\n\n"
-                    f"**Информация:** [Ваш текст приветствия, IP или ссылки]\n\n"
+                    f"**Информация:** https://discord.com/channels/1459994384899637425/1459994385738629434 \n\n"
                     f"Приятной игры на сервере!"
                 ),
                 color=discord.Color.from_rgb(47, 49, 54)
             )
             accept_embed.set_footer(
-                text=f"{guild.name} • All rights reserved © 2026",
+                text=f"Tidal • All rights reserved © 2026",
                 icon_url=interaction.client.user.display_avatar.url
             )
             await member.send(embed=accept_embed)
