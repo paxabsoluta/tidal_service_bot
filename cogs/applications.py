@@ -234,6 +234,16 @@ class ModeratorActionView(discord.ui.View):
             await archive_channel.send(embed=archive_embed)
 
         await interaction.message.delete()
+
+        try:
+            mc_sync_cog = getattr(interaction.client, "get_cog", lambda name: None)("MCRolesSync")
+            if mc_sync_cog:
+                interaction.client.loop.create_task(mc_sync_cog.process_accepted_player(mc_nickname)) # noqa
+            else:
+                print("[MCRolesSync Ошибка] Ког MCRolesSync не найден!")
+        except Exception as e:
+            print(f"[MCRolesSync Ошибка] Не удалось вызвать вайтлист: {e}")
+
         await interaction.followup.send("Игрок успешно принят!", ephemeral=True)
 
     @discord.ui.button(label="Отклонить (Переподача)", style=discord.ButtonStyle.blurple, custom_id="app_soft_deny")

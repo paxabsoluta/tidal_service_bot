@@ -4,3 +4,4 @@ mcstatus
 pytz
 chat-exporter
 aiosqlite
+rcon
