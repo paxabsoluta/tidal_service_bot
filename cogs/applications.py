@@ -156,7 +156,28 @@ class ModeratorActionView(discord.ui.View):
                 applicant_id, mc_nickname = row
 
         member = guild.get_member(applicant_id)
-        if not member: return await interaction.followup.send("Игрок вышел с Discord-сервера.", ephemeral=True)
+        if not member:
+            archive_channel = guild.get_channel(CONFIG["CHANNEL_ARCHIVE_ID"])
+            if archive_channel and interaction.message and interaction.message.embeds:
+                old_embed = interaction.message.embeds[0]
+                archive_embed = discord.Embed(
+                    title="⚠️ Закрыто (Игрок вышел)",
+                    description=f"**Кандидат:** <@{applicant_id}>\n**Модератор:** {interaction.user.mention}\n\n*Действие «Принять» отменено, так как пользователя нет на сервере.*",
+                    color=discord.Color.light_grey()
+                )
+                for field in old_embed.fields:
+                    archive_embed.add_field(name=field.name, value=field.value, inline=field.inline)
+                if old_embed.thumbnail:
+                    archive_embed.set_thumbnail(url=old_embed.thumbnail.url)
+                await archive_channel.send(embed=archive_embed)
+
+            async with aiosqlite.connect("apps_database.db") as db:
+                await db.execute("DELETE FROM apps WHERE message_id = ?", (interaction.message.id,))
+                await db.commit()
+
+            await interaction.message.delete()
+            return await interaction.followup.send("Заявка заархивирована. Игрок вышел с сервера, база очищена.",
+                                                   ephemeral=True)
 
         role_dostup = guild.get_role(CONFIG["ROLE_DOSTUP_ID"])
         role_member = guild.get_role(CONFIG["ROLE_MEMBER_ID"])
@@ -226,9 +247,31 @@ class ModeratorActionView(discord.ui.View):
                 applicant_id = row[0]
 
         member = guild.get_member(applicant_id)
-        if not member: return await interaction.response.send_message("Игрок вышел.", ephemeral=True)
-        if not interaction.message: return await interaction.response.send_message("Сообщение не найдено.",
-                                                                                   ephemeral=True)
+        if not member:
+            archive_channel = guild.get_channel(CONFIG["CHANNEL_ARCHIVE_ID"])
+            if archive_channel and interaction.message and interaction.message.embeds:
+                old_embed = interaction.message.embeds[0]
+                archive_embed = discord.Embed(
+                    title="⚠️ Закрыто (Игрок вышел)",
+                    description=f"**Кандидат:** <@{applicant_id}>\n**Модератор:** {interaction.user.mention}\n\n*Действие «Переподача» отменено, так как пользователя нет на сервере. Анкета заархивирована.*",
+                    color=discord.Color.light_grey()
+                )
+                for field in old_embed.fields:
+                    archive_embed.add_field(name=field.name, value=field.value, inline=field.inline)
+                if old_embed.thumbnail:
+                    archive_embed.set_thumbnail(url=old_embed.thumbnail.url)
+                await archive_channel.send(embed=archive_embed)
+
+            async with aiosqlite.connect("apps_database.db") as db:
+                await db.execute("DELETE FROM apps WHERE message_id = ?", (interaction.message.id,))
+                await db.commit()
+
+            await interaction.message.delete()
+            return await interaction.response.send_message(
+                "Заявка заархивирована. Игрок вышел с сервера, база очищена.", ephemeral=True)
+
+        if not interaction.message:
+            return await interaction.response.send_message("Сообщение не найдено.", ephemeral=True)
 
         await interaction.response.send_modal(
             RefusalReasonModal(member, interaction.message.embeds[0], interaction.message)
@@ -245,7 +288,30 @@ class ModeratorActionView(discord.ui.View):
                 applicant_id = row[0]
 
         member = guild.get_member(applicant_id)
-        if not member: return await interaction.followup.send("Игрок вышел.", ephemeral=True)
+        if not member:
+            archive_channel = guild.get_channel(CONFIG["CHANNEL_ARCHIVE_ID"])
+            if archive_channel and interaction.message and interaction.message.embeds:
+                old_embed = interaction.message.embeds[0]
+                archive_embed = discord.Embed(
+                    title="⛔ Перманентный отказ (Заочно)",
+                    description=f"**Кандидат:** <@{applicant_id}>\n**Модератор:** {interaction.user.mention}\n\n*Игрока нет на сервере, но ему выдан вечный отказ. При попытке вернуться он не сможет подать анкету.*",
+                    color=discord.Color.red()
+                )
+                for field in old_embed.fields:
+                    archive_embed.add_field(name=field.name, value=field.value, inline=field.inline)
+                if old_embed.thumbnail:
+                    archive_embed.set_thumbnail(url=old_embed.thumbnail.url)
+                await archive_channel.send(embed=archive_embed)
+
+            # Вместо удаления мы обновляем запись в базе данных!
+            async with aiosqlite.connect("apps_database.db") as db:
+                # Ставим вместо ID сообщения метку -1, чтобы бот помнил бан вечно
+                await db.execute("UPDATE apps SET message_id = -1 WHERE user_id = ?", (applicant_id,))
+                await db.commit()
+
+            await interaction.message.delete()
+            return await interaction.followup.send("Игроку выдан вечный отказ заочно. База заблокировала его ID.",
+                                                   ephemeral=True)
 
         role_dostup = guild.get_role(CONFIG["ROLE_DOSTUP_ID"])
         role_denied = guild.get_role(CONFIG["ROLE_DENIED_ID"])
