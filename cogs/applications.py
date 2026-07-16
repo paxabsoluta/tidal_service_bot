@@ -147,14 +147,47 @@ class ModeratorActionView(discord.ui.View):
         await interaction.response.defer(ephemeral=True)
         guild = interaction.guild
 
+        applicant_id = None
+        mc_nickname = None
+
+        # 1. Пытаемся найти заявку в базе данных
         async with aiosqlite.connect("apps_database.db") as db:
             async with db.execute("SELECT user_id, mc_name FROM apps WHERE message_id = ?",
                                   (interaction.message.id,)) as cursor:
                 row = await cursor.fetchone()
-                if not row: return await interaction.followup.send("Заявка не найдена в базе данных.", ephemeral=True)
-                applicant_id, mc_nickname = row
+                if row:
+                    applicant_id, mc_nickname = row
 
+        # 2. ПЛАН Б: Если в базе пусто после перезагрузки хостинга, читаем сам эмбед анкеты
+        if (not applicant_id or not mc_nickname) and interaction.message and interaction.message.embeds:
+            old_embed = interaction.message.embeds[0]
+
+            # Вытаскиваем ID из футера
+            try:
+                footer_text = old_embed.footer.text if old_embed.footer else ""
+                if "ID Пользователя:" in footer_text:
+                    applicant_id = int(footer_text.split(": ")[1])
+            except (IndexError, ValueError):
+                pass
+
+            # Вытаскиваем никнейм из полей
+            try:
+                for field in old_embed.fields:
+                    if "Ник в Minecraft" in field.name:
+                        mc_nickname = field.value.replace("```", "").strip()
+                        break
+            except AttributeError:
+                pass
+
+        # 3. Если данные не удалось найти вообще нигде (заявка повреждена)
+        if not applicant_id or not mc_nickname:
+            return await interaction.followup.send(
+                "❌ Критическая ошибка: Не удалось определить ID игрока или его никнейм.", ephemeral=True)
+
+        # 4. Проверяем, есть ли пользователь на сервере
         member = guild.get_member(applicant_id)
+
+        # Если игрок ВЫШЕЛ с сервера — экстренная очистка и архивация
         if not member:
             archive_channel = guild.get_channel(CONFIG["CHANNEL_ARCHIVE_ID"])
             if archive_channel and interaction.message and interaction.message.embeds:
@@ -178,14 +211,12 @@ class ModeratorActionView(discord.ui.View):
             return await interaction.followup.send("Заявка заархивирована. Игрок вышел с сервера, база очищена.",
                                                    ephemeral=True)
 
+        # 5. Если игрок на сервере — стандартный процесс выдачи ролей
         role_dostup = guild.get_role(CONFIG["ROLE_DOSTUP_ID"])
         role_member = guild.get_role(CONFIG["ROLE_MEMBER_ID"])
 
-        # Проверяем, что роль "доступ" существует на сервере и она есть у игрока
         if role_dostup and role_dostup in member.roles:
             await member.remove_roles(role_dostup)
-
-        # Проверяем, что роль "Member" существует на сервере
         if role_member:
             await member.add_roles(role_member)
 
@@ -198,53 +229,52 @@ class ModeratorActionView(discord.ui.View):
             accept_embed = discord.Embed(
                 title="🧧 Анкета",
                 description=(
-                    f"Есть новости для вас!\n"
+                    f"Добрый день. Проверяющий вашу анкету является администратором сервера.\n"
                     f"Ваша анкета была рассмотрена и **одобрена**. Вы были добавлены на сервер.\n\n"
-                    f"**Информация:** https://discord.com/channels/1459994384899637425/1459994385738629434 \n\n"
+                    f"**Информация:** [Ваш текст приветствия, IP или ссылки]\n\n"
                     f"Приятной игры на сервере!"
                 ),
                 color=discord.Color.from_rgb(47, 49, 54)
             )
             accept_embed.set_footer(
-                text=f"Tidal • All rights reserved © 2026",
+                text=f"{guild.name} • All rights reserved © 2026",
                 icon_url=interaction.client.user.display_avatar.url
             )
             await member.send(embed=accept_embed)
         except discord.Forbidden:
             pass
 
+        # 6. Отправляем заполненную анкету в архив результатов
         archive_channel = guild.get_channel(CONFIG["CHANNEL_ARCHIVE_ID"])
-        if archive_channel and interaction.message.embeds:
-            # Берем оригинальный эмбед заявки
+        if archive_channel and interaction.message and interaction.message.embeds:
             old_embed = interaction.message.embeds[0]
-
-            # Создаем на его основе новый архивный эмбед с зеленым цветом
             archive_embed = discord.Embed(
                 title="✅ Принято",
                 description=f"**Кандидат:** <@{applicant_id}>\n**Модератор:** {interaction.user.mention}",
                 color=discord.Color.green()
             )
-            # Переносим все ответы игрока
             for field in old_embed.fields:
                 archive_embed.add_field(name=field.name, value=field.value, inline=field.inline)
-
             if old_embed.thumbnail:
                 archive_embed.set_thumbnail(url=old_embed.thumbnail.url)
-
             await archive_channel.send(embed=archive_embed)
 
-        await interaction.message.delete()
+        # 7. Чистим базу данных
+        async with aiosqlite.connect("apps_database.db") as db:
+            await db.execute("DELETE FROM apps WHERE message_id = ?", (interaction.message.id,))
+            await db.commit()
 
+        # 8. Удаляем сообщение СРАЗУ (до запуска внешних когов)
+        await interaction.message.delete()
+        await interaction.followup.send("Игрок успешно принят!", ephemeral=True)
+
+        # 9. Безопасный вызов вашей новой интеграции с MCRolesSync
         try:
             mc_sync_cog = getattr(interaction.client, "get_cog", lambda name: None)("MCRolesSync")
             if mc_sync_cog:
                 interaction.client.loop.create_task(mc_sync_cog.process_accepted_player(mc_nickname)) # noqa
-            else:
-                print("[MCRolesSync Ошибка] Ког MCRolesSync не найден!")
         except Exception as e:
-            print(f"[MCRolesSync Ошибка] Не удалось вызвать вайтлист: {e}")
-
-        await interaction.followup.send("Игрок успешно принят!", ephemeral=True)
+            print(f"[MCRolesSync Ошибка] Не удалось синхронизировать роли: {e}")
 
     @discord.ui.button(label="Отклонить (Переподача)", style=discord.ButtonStyle.blurple, custom_id="app_soft_deny")
     async def soft_deny(self, interaction: discord.Interaction, button: discord.ui.Button):
