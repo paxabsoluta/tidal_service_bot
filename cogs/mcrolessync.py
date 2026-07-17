@@ -24,9 +24,12 @@ class MCRolesSync(commands.Cog):
 
         # Настройка пар "РОЛЬ -> ПРАВА"
         self.ROLE_MAPPING = {
-            111111111111111111: {"type": "group", "name": "vip"},
-            222222222222222222: {"type": "temp_group", "name": "moder", "duration": "30d"},
-            333333333333333333: {"type": "permission", "name": "cmi.command.fly"}
+            1473235427250012251: {"type": "group", "name": "moderator"},
+            1475601409838682243: {"type": "group", "name": "helper"},
+            1477007491660517406: {"type": "group", "name": "contentmaker"},
+            1475598422798106724: {"type": "temp_group", "name": "premium", "duration": "30d"},
+            1473622502742818849: {"type": "permission", "name": "badge.alpha"},
+            1475762499767894036: {"type": "permission", "name": "badge.beta"},
         }
 
     async def send_rcon_command(self, command: str):
@@ -52,7 +55,7 @@ class MCRolesSync(commands.Cog):
     async def process_accepted_player(self, nickname: str):
         """Добавляет игрока в вайтлист при одобрении заявки"""
         await self.send_rcon_command(f"swl add {nickname}")
-        print(f"[MCRolesSync] Игрок {nickname} добавлен в SimpleWhiteList через тикет.")
+        print(f"[MCRolesSync] Игрок {nickname} добавлен в SWL через тикет.")
 
     # ==========================================
     # ЧАСТЬ 2: АВТОМАТИЧЕСКАЯ СИНХРОНИЗАЦИЯ РОЛЕЙ
@@ -112,7 +115,7 @@ class MCRolesSync(commands.Cog):
     @app_commands.checks.has_permissions(administrator=True)
     async def rcon_test(self, interaction: discord.Interaction, test_cmd: str = "list"):
         """Вызывается через /rcon_test"""
-        await interaction.response.send_message("⌛ Отправляю тестовую команду в консоль Purpur...")
+        await interaction.response.send_message("⌛ Отправляю тестовую команду в консоль...")
         response = await self.send_rcon_command(test_cmd)
 
         if response is not None:
