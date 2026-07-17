@@ -2,6 +2,11 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import aiosqlite
+import os
+
+# Автоматически берем путь к постоянной папке от хостинга
+DATA_DIR = os.getenv('DATA_DIR', '/app/data')
+DB_PATH = os.path.join(DATA_DIR, 'apps_database.db')
 
 # ==================== НАСТРОЙКИ КОГА ====================
 CONFIG = {
@@ -23,7 +28,7 @@ class StartButtonView(discord.ui.View):
 
     @discord.ui.button(label="Подать заявку", style=discord.ButtonStyle.green, custom_id="start_app_btn")
     async def start_app(self, interaction: discord.Interaction, button: discord.ui.Button):
-        async with aiosqlite.connect("apps_database.db") as db:
+        async with aiosqlite.connect(DB_PATH) as db:
             async with db.execute("SELECT 1 FROM apps WHERE user_id = ?", (interaction.user.id,)) as cursor:
                 if await cursor.fetchone():
                     return await interaction.response.send_message(
@@ -62,7 +67,7 @@ class ApplicationModal(discord.ui.Modal, title="Анкета на сервер M
         view = ModeratorActionView()
         msg = await active_channel.send(embed=embed, view=view)
 
-        async with aiosqlite.connect("apps_database.db") as db:
+        async with aiosqlite.connect(DB_PATH) as db:
             await db.execute("INSERT INTO apps (message_id, user_id, mc_name) VALUES (?, ?, ?)",
                              (msg.id, interaction.user.id, self.nickname.value))
             await db.commit()
@@ -130,7 +135,7 @@ class RefusalReasonModal(discord.ui.Modal, title="Причина отклоне�
 
             await archive_channel.send(embed=archive_embed)
 
-        async with aiosqlite.connect("apps_database.db") as db:
+        async with aiosqlite.connect(DB_PATH) as db:
             await db.execute("DELETE FROM apps WHERE message_id = ?", (self.msg.id,))
             await db.commit()
 
@@ -151,7 +156,7 @@ class ModeratorActionView(discord.ui.View):
         mc_nickname = None
 
         # 1. Пытаемся найти заявку в базе данных
-        async with aiosqlite.connect("apps_database.db") as db:
+        async with aiosqlite.connect(DB_PATH) as db:
             async with db.execute("SELECT user_id, mc_name FROM apps WHERE message_id = ?",
                                   (interaction.message.id,)) as cursor:
                 row = await cursor.fetchone()
@@ -203,7 +208,7 @@ class ModeratorActionView(discord.ui.View):
                     archive_embed.set_thumbnail(url=old_embed.thumbnail.url)
                 await archive_channel.send(embed=archive_embed)
 
-            async with aiosqlite.connect("apps_database.db") as db:
+            async with aiosqlite.connect(DB_PATH) as db:
                 await db.execute("DELETE FROM apps WHERE message_id = ?", (interaction.message.id,))
                 await db.commit()
 
@@ -260,7 +265,7 @@ class ModeratorActionView(discord.ui.View):
             await archive_channel.send(embed=archive_embed)
 
         # 7. Чистим базу данных
-        async with aiosqlite.connect("apps_database.db") as db:
+        async with aiosqlite.connect(DB_PATH) as db:
             await db.execute("DELETE FROM apps WHERE message_id = ?", (interaction.message.id,))
             await db.commit()
 
@@ -279,7 +284,7 @@ class ModeratorActionView(discord.ui.View):
     @discord.ui.button(label="Отклонить (Переподача)", style=discord.ButtonStyle.blurple, custom_id="app_soft_deny")
     async def soft_deny(self, interaction: discord.Interaction, button: discord.ui.Button):
         guild = interaction.guild
-        async with aiosqlite.connect("apps_database.db") as db:
+        async with aiosqlite.connect(DB_PATH) as db:
             async with db.execute("SELECT user_id FROM apps WHERE message_id = ?", (interaction.message.id,)) as cursor:
                 row = await cursor.fetchone()
                 if not row: return await interaction.response.send_message("Заявка не найдена в базе данных.", ephemeral=True)
@@ -301,7 +306,7 @@ class ModeratorActionView(discord.ui.View):
                     archive_embed.set_thumbnail(url=old_embed.thumbnail.url)
                 await archive_channel.send(embed=archive_embed)
 
-            async with aiosqlite.connect("apps_database.db") as db:
+            async with aiosqlite.connect(DB_PATH) as db:
                 await db.execute("DELETE FROM apps WHERE message_id = ?", (interaction.message.id,))
                 await db.commit()
 
@@ -320,7 +325,7 @@ class ModeratorActionView(discord.ui.View):
     async def hard_deny(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer(ephemeral=True)
         guild = interaction.guild
-        async with aiosqlite.connect("apps_database.db") as db:
+        async with aiosqlite.connect(DB_PATH) as db:
             async with db.execute("SELECT user_id FROM apps WHERE message_id = ?", (interaction.message.id,)) as cursor:
                 row = await cursor.fetchone()
                 if not row: return await interaction.followup.send("Заявка не найдена в базе данных.", ephemeral=True)
@@ -343,7 +348,7 @@ class ModeratorActionView(discord.ui.View):
                 await archive_channel.send(embed=archive_embed)
 
             # Вместо удаления мы обновляем запись в базе данных!
-            async with aiosqlite.connect("apps_database.db") as db:
+            async with aiosqlite.connect(DB_PATH) as db:
                 # Ставим вместо ID сообщения метку -1, чтобы бот помнил бан вечно
                 await db.execute("UPDATE apps SET message_id = -1 WHERE user_id = ?", (applicant_id,))
                 await db.commit()
@@ -411,7 +416,7 @@ class ApplicationsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        async with aiosqlite.connect("apps_database.db") as db:
+        async with aiosqlite.connect(DB_PATH) as db:
             await db.execute(
                 "CREATE TABLE IF NOT EXISTS apps (message_id INTEGER PRIMARY KEY, user_id INTEGER, mc_name TEXT)")
             await db.commit()
@@ -446,7 +451,7 @@ class ApplicationsCog(commands.Cog):
                           description="Очистить данные игрока в базе заявок, чтобы он мог подать её снова")
     @app_commands.checks.has_permissions(administrator=True)
     async def reset_user(self, interaction: discord.Interaction, user: discord.User):
-        async with aiosqlite.connect("apps_database.db") as db:
+        async with aiosqlite.connect(DB_PATH) as db:
             # Удаляем все записи, связанные с этим ID пользователя
             await db.execute("DELETE FROM apps WHERE user_id = ?", (user.id,))
             await db.commit()
