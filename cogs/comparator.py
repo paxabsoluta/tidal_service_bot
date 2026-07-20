@@ -55,9 +55,9 @@ class WhitelistConfirmView(discord.ui.View):
 class Comparator(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.rcon_host = str(os.getenv("RCON_HOST", ""))
-        self.rcon_port = int(os.getenv("RCON_PORT", 25575))
-        self.rcon_password = str(os.getenv("RCON_PASSWORD", ""))
+        self.rcon_host = str(os.getenv("MINECRAFT_RCON_IP", ""))
+        self.rcon_port = int(os.getenv("MINECRAFT_RCON_PORT", 25575))
+        self.rcon_password = str(os.getenv("MINECRAFT_RCON_PASS", ""))
         self.member_role_id = 1459994385289711828
 
     async def run_rcon_cmd(self, command: str) -> str:
