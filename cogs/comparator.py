@@ -1,16 +1,15 @@
 import os
 import re
-import struct
-import asyncio
 import discord
 from discord import app_commands
 from discord.ext import commands
+from rcon.source import rcon  # Используем вашу готовую и рабочую библиотеку
 
 
 # Класс для кнопок управления в чате
 class WhitelistConfirmView(discord.ui.View):
     def __init__(self, cog, players_to_remove, players_to_add, author):
-        super().__init__(timeout=300) # Кнопки активны 5 минут
+        super().__init__(timeout=300)  # Кнопки активны 5 минут
         self.cog = cog
         self.players_to_remove = players_to_remove
         self.players_to_add = players_to_add
@@ -62,35 +61,18 @@ class Comparator(commands.Cog):
         self.member_role_id = 1459994385289711828
 
     async def run_rcon_cmd(self, command: str) -> str:
-        """Автономная реализация RCON без внешних библиотек"""
+        """Безопасная отправка команд с использованием вашей библиотеки rcon"""
         try:
-            reader, writer = await asyncio.wait_for(
-                asyncio.open_connection(self.rcon_host, self.rcon_port), timeout=5.0
+            # Поскольку библиотека rcon асинхронная, вызываем её через await
+            # Аргументы host и port передаются стандартно, пароль передается через passwd
+            return await rcon(
+                command,
+                host=self.rcon_host,
+                port=self.rcon_port,
+                passwd=self.rcon_password
             )
-            auth_packet = struct.pack('<iii', 10 + len(self.rcon_password), 1, 3) + self.rcon_password.encode(
-                'utf-8') + b'\x00\x00'
-            writer.write(auth_packet)
-            await writer.drain()
-            await reader.read(4096)
-
-            cmd_packet = struct.pack('<iii', 10 + len(command), 2, 2) + command.encode('utf-8') + b'\x00\x00'
-            writer.write(cmd_packet)
-            await writer.drain()
-
-            response_header = await reader.read(12)
-            if len(response_header) < 12:
-                writer.close()
-                await writer.wait_closed()
-                return "Ошибка RCON"
-
-            packet_len, packet_id, packet_type = struct.unpack('<iii', response_header)
-            response_body = await reader.read(packet_len - 8)
-
-            writer.close()
-            await writer.wait_closed()
-            return response_body.decode('utf-8', errors='ignore').strip()
-        except Exception:
-            return "Ошибка RCON"
+        except Exception as e:
+            return f"Ошибка RCON: {e}"
 
     def clean_minecraft_colors(self, text: str) -> str:
         """Удаляет цветовые коды Майнкрафта"""
@@ -105,7 +87,7 @@ class Comparator(commands.Cog):
         rcon_response = await self.run_rcon_cmd("swl list")
 
         if "Ошибка RCON" in rcon_response:
-            await interaction.followup.send("❌ Не удалось подключиться к серверу через RCON. Проверьте .env данные.")
+            await interaction.followup.send(f"❌ Не удалось подключиться к серверу через RCON: {rcon_response}")
             return
 
         clean_response = self.clean_minecraft_colors(rcon_response).strip()
@@ -117,11 +99,11 @@ class Comparator(commands.Cog):
         else:
             players_string = clean_response
 
-        # Список ников из игры (сохраняем оригинальный регистр для команд, но чистим пробелы)
+        # Список ников из игры
         mc_players = [p.strip() for p in players_string.split(",") if p.strip()]
         mc_players_lower = {p.lower() for p in mc_players}
 
-        # 2. Сбор данных из Discord (сопоставляем нижний регистр и реальное отображаемое имя)
+        # 2. Сбор данных из Discord (по отображаемым именам пользователей)
         guild = interaction.guild
         discord_members_map = {}  # {нижний_регистр: оригинальное_отображаемое_имя}
 
@@ -165,7 +147,6 @@ class Comparator(commands.Cog):
         report_lines.append("Выберите действие на панелях ниже:")
         full_report = "\n".join(report_lines)
 
-        # Создаем объект кнопок
         view = WhitelistConfirmView(self, suspicious_to_remove, suspicious_to_add, interaction.user)
 
         # Отключаем кнопки через явную проверку их текста, чтобы PyCharm не ругался
@@ -176,7 +157,6 @@ class Comparator(commands.Cog):
                 elif child.label == "Добавить «потеряшек»" and not suspicious_to_add:
                     child.disabled = True
 
-        # Отправляем отчет вместе с настроенными кнопками
         await interaction.followup.send(full_report, view=view)
 
     @sync_whitelist.error
