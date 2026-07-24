@@ -27,7 +27,7 @@ class MCRolesSync(commands.Cog):
             1473235427250012251: {"type": "group", "name": "moderator"},
             1475601409838682243: {"type": "group", "name": "helper"},
             1477007491660517406: {"type": "group", "name": "contentmaker"},
-            1475598422798106724: {"type": "temp_group", "name": "premium", "duration": "30d"},
+           # 1475598422798106724: {"type": "temp_group", "name": "premium", "duration": "30d"},
             1473622502742818849: {"type": "permission", "name": "badge.alpha"},
             1475762499767894036: {"type": "permission", "name": "badge.beta"},
         }
