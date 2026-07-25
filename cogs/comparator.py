@@ -80,6 +80,7 @@ class Comparator(commands.Cog):
 
     @app_commands.command(name="sync_whitelist", description="Двусторонняя сверка вайтлиста игры с Discord")
     @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.guild_only()
     async def sync_whitelist(self, interaction: discord.Interaction):
         await interaction.response.send_message("⏳ Запускаю двусторонний аудит. Пожалуйста, подождите...")
 

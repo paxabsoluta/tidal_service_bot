@@ -248,6 +248,7 @@ class Tickets(commands.Cog):
 
     @app_commands.command(name="setup_tickets", description="Отправить меню тикетов (Только для Администрации)")
     @app_commands.checks.has_any_role(ROLE_ADMIN)
+    @app_commands.guild_only()
     async def setup_tickets(self, interaction: discord.Interaction):
         target_channel = interaction.guild.get_channel(MAIN_CHANNEL_ID)
 
@@ -287,6 +288,7 @@ class Tickets(commands.Cog):
     @app_commands.command(name="ticket_add", description="Добавить игрока в тикет (Только для Администрации)")
     @app_commands.describe(member="Игрок, которого нужно добавить")
     @app_commands.checks.has_any_role(ROLE_ADMIN)
+    @app_commands.guild_only()
     async def ticket_add(self, interaction: discord.Interaction, member: discord.Member):
         channel = interaction.channel
 

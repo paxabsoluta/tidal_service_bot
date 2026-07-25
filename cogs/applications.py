@@ -428,6 +428,7 @@ class ApplicationsCog(commands.Cog):
     # Теперь это красивая слэш-команда /setup_apps
     @app_commands.command(name="setup_apps", description="Создать стартовое сообщение с кнопкой подачи заявки")
     @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.guild_only()
     async def setup_apps(self, interaction: discord.Interaction):
         # Так как это слэш-команда, вместо ctx мы используем interaction
         channel = interaction.guild.get_channel(CONFIG["CHANNEL_START_ID"])
@@ -450,6 +451,7 @@ class ApplicationsCog(commands.Cog):
     @app_commands.command(name="reset_user",
                           description="Очистить данные игрока в базе заявок, чтобы он мог подать её снова")
     @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.guild_only()
     async def reset_user(self, interaction: discord.Interaction, user: discord.User):
         async with aiosqlite.connect(DB_PATH) as db:
             # Удаляем все записи, связанные с этим ID пользователя

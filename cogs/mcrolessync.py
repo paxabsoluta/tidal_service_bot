@@ -113,6 +113,7 @@ class MCRolesSync(commands.Cog):
     # ==========================================
     @app_commands.command(name="rcon_test", description="Тестирует RCON-подключение к Майнкрафт серверу")
     @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.guild_only()
     async def rcon_test(self, interaction: discord.Interaction, test_cmd: str = "list"):
         """Вызывается через /rcon_test"""
         await interaction.response.send_message("⌛ Отправляю тестовую команду в консоль...")
@@ -133,6 +134,7 @@ class MCRolesSync(commands.Cog):
     @app_commands.command(name="changenick",
                           description="Переносит проходку вайтлиста и донат-роли на новый ник игрока")
     @app_commands.checks.has_permissions(manage_nicknames=True)
+    @app_commands.guild_only()
     async def change_nick_command(self, interaction: discord.Interaction, member: discord.Member, new_nickname: str):
         """Вызывается через /changenick"""
         old_nickname = self.get_minecraft_name(member)
