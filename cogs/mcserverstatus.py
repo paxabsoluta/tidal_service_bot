@@ -88,8 +88,12 @@ class MinecraftStatus(commands.Cog):
                         if raw_names:
                             # Разделяем ники запятыми, очищаем от пробелов и мусора
                             player_list = [name.strip() for name in raw_names.split(",")]
-                            players_names_text = ", ".join(
-                                f"`{self.clean_minecraft_text(name)}`" for name in player_list)
+                            # Создаем нумерованный список, где каждый игрок с новой строки
+                            numbered_list = [
+                                f"{i}. `{self.clean_minecraft_text(name)}`"
+                                for i, name in enumerate(player_list, start=1)
+                            ]
+                            players_names_text = "\n".join(numbered_list)
                         else:
                             players_names_text = "_На сервере никого нет_"
                     else:
