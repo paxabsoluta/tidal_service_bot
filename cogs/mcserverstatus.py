@@ -2,6 +2,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from mcstatus import JavaServer
+import os
+from rcon.source import rcon
 
 
 class MinecraftStatus(commands.Cog):
@@ -63,12 +65,40 @@ class MinecraftStatus(commands.Cog):
 
             # Секция 4: Список никнеймов игроков
             if is_maintenance:
-                players_names_text = "⚙️ _Доступ временно ограничен_"
-            elif players_online > 0 and status.players.sample:
-                player_list = [player.name for player in status.players.sample]
-                players_names_text = ", ".join(f"`{self.clean_minecraft_text(name)}`" for name in player_list)
+                players_names_text = "⚙ _Доступ временно ограничен_"
             elif players_online > 0:
-                players_names_text = "ℹ️ _Сервер скрывает имена игроков_"
+                try:
+                    # Читаем переменные и гарантируем, что это строки (добавляя пустую строку '' на крайний случай)
+                    rcon_ip = os.getenv('MINECRAFT_RCON_IP', '')
+                    rcon_port = int(os.getenv('MINECRAFT_RCON_PORT', 25575))
+                    rcon_pass = os.getenv('MINECRAFT_RCON_PASS', '')
+
+                    # Теперь PyCharm спокоен, так как rcon_pass гарантированно является строкой
+                    rcon_response = await rcon(
+                        "list",
+                        host=rcon_ip,
+                        port=rcon_port,
+                        passwd=rcon_pass
+                    )
+
+                    # Майнкрафт обычно отвечает: "Игроков онлайн: X из Y: ник1, ник2"
+                    if ":" in rcon_response:
+                        # Исправлено: берем элемент [1] (все что после двоеточия) и только потом очищаем пробелы
+                        raw_names = rcon_response.split(":", 1)[1].strip()
+                        if raw_names:
+                            # Разделяем ники запятыми, очищаем от пробелов и мусора
+                            player_list = [name.strip() for name in raw_names.split(",")]
+                            players_names_text = ", ".join(
+                                f"`{self.clean_minecraft_text(name)}`" for name in player_list)
+                        else:
+                            players_names_text = "_На сервере никого нет_"
+                    else:
+                        players_names_text = f"```\n{self.clean_minecraft_text(rcon_response)}\n```"
+
+                except Exception as rcon_error:
+                    # Если RCON не ответил, выводим ошибку, чтобы не ломать команду
+                    players_names_text = f"⚠ _Ошибка RCON: не удалось получить список игроков_"
+                    print(f"[RCON Error]: {rcon_error}")
             else:
                 players_names_text = "_На сервере никого нет_"
 
