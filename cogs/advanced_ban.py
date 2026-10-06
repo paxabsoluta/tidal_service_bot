@@ -17,7 +17,7 @@ class AdvancedBan(commands.Cog):
             self,
             interaction: discord.Interaction,
             member: discord.Member,
-            reason: str = "Причина не указана администратором."  # Стандартная заглушка
+            reason: str = "Причина не указана."  # Стандартная заглушка
     ):
         # Откладываем ответ, так как отправка ЛС и бан могут занять больше 3 секунд
         await interaction.response.defer(ephemeral=True)
@@ -68,7 +68,7 @@ class AdvancedBan(commands.Cog):
         server_embed.add_field(name="📋 Причина", value=reason, inline=False)
 
         # Добавляем статус уведомления в ЛС
-        dm_status = "✅ Уведомление успешно доставлено в ЛС." if dm_sent else "⚠️ Не удалось отправить ЛС (закрытые личные сообщения)."
+        dm_status = "✅ Уведомление успешно доставлено." if dm_sent else "⚠️ Не удалось отправить уведомление."
         server_embed.set_footer(text=dm_status)
         server_embed.timestamp = interaction.created_at
 
