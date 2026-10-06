@@ -47,7 +47,10 @@ class AdvancedBan(commands.Cog):
 
             # 2. Выполняем бан на сервере
         try:
-            await member.ban(reason=f"Модератор: {interaction.user.name} | Причина: {reason}")
+            await member.ban(
+                delete_message_seconds=0,
+                reason=f"Модератор: {interaction.user.name} | Причина: {reason}"
+            )
         except discord.Forbidden:
             await interaction.followup.send(
                 "❌ Не удалось забанить пользователя. У бота недостаточно прав (его роль должна быть выше роли нарушителя).",
