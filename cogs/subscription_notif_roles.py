@@ -7,10 +7,10 @@ from discord import app_commands  # Добавляем импорт для сл�
 # КОНФИГУРАЦИЯ: Укажите здесь реальные ID ролей уведомлений с вашего сервера
 # =========================================================================
 ROLE_IDS = {
-    "btn_action": 123456789012345678,  # ID роли для 📯 (Уведомления от команды)
-    "btn_action_4": 123456789012345678,  # ID роли для 🎉 (Ивенты)
-    "btn_action_3": 123456789012345678,  # ID роли для 🗞️ (Roleplay-Газета)
-    "btn_action_2": 123456789012345678,  # ID роли для 🎥 (Медиа)
+    "btn_action": 1459994385289711826,  # ID роли для 📯 (Уведомления от команды)
+    "btn_action_4": 1459994385289711825,  # ID роли для 🎉 (Ивенты)
+    "btn_action_3": 1474120911639547955,  # ID роли для 🗞️ (Roleplay-Газета)
+    "btn_action_2": 1474441052655190149,  # ID роли для 🎥 (Медиа)
 }
 
 
@@ -21,7 +21,7 @@ class RolesLayoutView(ui.LayoutView):
         container = ui.Container(
             ui.MediaGallery(
                 discord.MediaGalleryItem(
-                    "attachment://ChatGPT_Image_3____._2026__.__09_28_28.png",
+                    "attachment://panel_image.png",
                 ),
             ),
             ui.TextDisplay("ⵈ━═════════════════════════╗◊╔═════════════════════════━ⵈ"),
@@ -78,7 +78,13 @@ class RolesLayoutView(ui.LayoutView):
         if not interaction.guild:
             return await interaction.response.send_message("Эта кнопка работает только на сервере!", ephemeral=True)
 
-        role_id = ROLE_IDS.get(interaction.data.get("custom_id"))
+        custom_id = interaction.data.get("custom_id") if interaction.data else None
+        role_id = ROLE_IDS.get(str(custom_id))
+
+        # Если кнопка не найдена в нашем словаре, прерываем выполнение
+        if not role_id:
+            return await interaction.response.send_message("❌ Ошибка: Кнопка не зарегистрирована.", ephemeral=True)
+
         role = interaction.guild.get_role(role_id)
 
         if not role:
@@ -127,8 +133,8 @@ class RoleMenuCog(commands.Cog):
         """Слэш-команда для отправки панели"""
         view = RolesLayoutView()
 
-        image_path = "./ChatGPT_Image_3____._2026__.__09_28_28.png"
-        filename = "ChatGPT_Image_3____._2026__.__09_28_28.png"
+        image_path = "./panel_image.png"
+        filename = "panel_image.png"
 
         try:
             file = discord.File(image_path, filename=filename)
