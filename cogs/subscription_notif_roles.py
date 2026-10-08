@@ -43,11 +43,11 @@ class RolesLayoutView(ui.LayoutView):
             ui.Separator(visible=True, spacing=discord.SeparatorSpacing.large),
             ui.TextDisplay(
                 "## Получение ролей\n"
-                "Нажмите на нужные реакции ниже, чтобы получать соответствующие уведомления:\n"
-                ":postal_horn: — Уведомления от команды\n"
-                ":tada: — Ивенты\n"
-                ":newspaper2: — Roleplay-Газета\n"
-                ":movie_camera: — Медиа (анонсы видео и стримов)",
+                "Нажмите на нужные кнопки ниже, чтобы получать соответствующие уведомления:\n"
+                "> :postal_horn: — Уведомления от команды\n"
+                "> :tada: — Ивенты\n"
+                "> :newspaper2: — Roleplay-Газета\n"
+                "> :movie_camera: — Медиа (анонсы видео и стримов)",
             ),
         )
 
