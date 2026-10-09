@@ -48,9 +48,9 @@ class General(commands.Cog):
 
         # 🔥 НОВАЯ ОПЦИЯ: Проверка на упоминание бота + секретное слово
         # Замените "секретное слово" на вашу фразу (обязательно маленькими буквами)
-        if self.bot.user.mentioned_in(message) and "Робот сочинит симфонию?" in text:
+        if self.bot.user.mentioned_in(message) and "робот сочинит симфонию?" in text:
             await message.reply("А вы?")
-            return  # Выходим, чтобы код ниже не выполнялся
+            return  # Останавливаем проверку, чтобы код ниже не выполнялся
 
         # Ищем, есть ли написанный текст в нашем списке обычных автоответов
         if text in self.auto_replies:

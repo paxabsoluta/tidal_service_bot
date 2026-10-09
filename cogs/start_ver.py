@@ -68,7 +68,7 @@ class RoleButtonCog(commands.Cog):
     # Ограничения для слэш-команды
     @app_commands.guild_only()  # Команда запрещена в ЛС (только для серверов)
     @app_commands.default_permissions(administrator=True)  # Видна только администраторам сервера
-    @app_commands.command(name="setup_role_button", description="Установить интерактивную кнопку выдачи роли")
+    @app_commands.command(name="setup_start_verifier", description="Установить интерактивную кнопку выдачи роли")
     async def slash_setup_button(self, interaction: discord.Interaction):
         # Создаем экземпляр нашей структуры
         view = RoleLayoutView()
