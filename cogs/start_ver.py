@@ -1,15 +1,13 @@
 import discord
-from discord import ui, app_commands
+from discord import ui
 from discord.ext import commands
 
-# ID роли, которую бот будет выдавать (замените на свой ID)
-ROLE_ID = 1459994385281454326
+ROLE_ID = 1459994385281454326  # Ваш ID роли
 
 
 class RoleLayoutView(ui.LayoutView):
     def __init__(self):
-        # timeout=None делает view бессрочной
-        super().__init__(timeout=None)
+        super().__init__(timeout=None)  # По-прежнему вечная панель
 
         self.add_item(
             ui.Container(
@@ -17,61 +15,43 @@ class RoleLayoutView(ui.LayoutView):
                     ui.TextDisplay("## Нажмите на кнопку, чтобы начать"),
                     accessory=ui.Button( # noqa
                         style=discord.ButtonStyle.success,
-                        label="Получить роль",
-                        custom_id="btn_give_role",  # Уникальный ID для сохранения состояния
-                    ),
+                        label="СТАРТ",
+                        custom_id="btn_give_role",
+                    ),  # type: ignore
                 ),
             ),
         )
 
-    # Обработчик нажатия, который работает всегда (Persistent)
-    async def on_interaction(self, interaction: discord.Interaction) -> None:
+    # Исправленный и защищенный обработчик взаимодействия
+    async def on_interaction(self, interaction: discord.Interaction) -> bool:
+        # Проверяем наш custom_id
         if interaction.data.get("custom_id") == "btn_give_role":
+
+            # 1. МГНОВЕННО говорим Дискорду, что мы приняли запрос и думаем.
+            # ephemeral=True означает, что последующий ответ (followup) будет виден только нажавшему.
+            await interaction.response.defer(ephemeral=True)
+
             guild = interaction.guild
             member = interaction.user
 
             if not guild or not isinstance(member, discord.Member):
-                return
+                return True
 
             role = guild.get_role(ROLE_ID)
             if not role:
-                await interaction.response.send_message("Ошибка: Роль не найдена на сервере.", ephemeral=True)
-                return
+                # Так как мы использовали defer(), теперь отвечаем через followup.send
+                await interaction.followup.send("Ошибка: Роль не найдена на сервере.", ephemeral=True)
+                return True
 
-            # Переключатель роли (выдать/забрать)
+            # 2. Выполняем «тяжелую» операцию смены ролей
             if role in member.roles:
                 await member.remove_roles(role)
-                await interaction.response.send_message(f"С вас снята роль {role.mention}!", ephemeral=True)
+                await interaction.followup.send(f"С вас снята роль {role.mention}!", ephemeral=True)
             else:
                 await member.add_roles(role)
-                await interaction.response.send_message(f"Вам выдана роль {role.mention}!", ephemeral=True)
+                await interaction.followup.send(f"Вам выдана роль {role.mention}!", ephemeral=True)
 
+            return True  # Сообщаем системе, что взаимодействие полностью обработано
 
-class RoleButtonCog(commands.Cog):
-    def __init__(self, bot: commands.Bot):
-        self.bot = bot
-
-    # 1. Ограничиваем команду только серверами (запрет работы в ЛС)
-    @app_commands.guild_only()
-    # 2. Доступ только для пользователей с правами Администратора
-    @app_commands.default_permissions(administrator=True)
-    # 3. Сама слэш-команда
-    @app_commands.command(name="setup_start_verifier", description="Установить стартовое проверочное сообщение")
-    async def slash_setup_button(self, interaction: discord.Interaction):
-        # Создаем экземпляр нашей вечной панели
-        view = RoleLayoutView()
-
-        # Отправляем сообщение на сервере
-        await interaction.response.send_message("Панель успешно установлена!", ephemeral=True)  # Подтверждение админу
-        await interaction.channel.send(view=view)  # Сама панель для пользователей
-
-    # Регистрация вечного View в памяти бота при каждом запуске
-    @commands.Cog.listener()
-    async def on_ready(self):
-        # Без этой строчки кнопки перестанут работать после перезагрузки бота
-        self.bot.add_view(RoleLayoutView())
-        print(f"Вечная панель RoleLayoutView успешно добавлена в менеджер бота!")
-
-
-async def setup(bot: commands.Bot):
-    await bot.add_cog(RoleButtonCog(bot))
+        # Обязательно передаем другие взаимодействия (если они появятся в будущем) наверх
+        return await super().on_interaction(interaction)
