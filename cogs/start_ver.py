@@ -14,7 +14,7 @@ class RoleLayoutView(ui.LayoutView):
         self.add_item(
             ui.Container(
                 ui.Section(
-                    ui.TextDisplay("## Нажмите на кнопку, чтобы получить роль"),
+                    ui.TextDisplay("## Нажмите на кнопку, чтобы начать"),
                     accessory=ui.Button( # noqa
                         style=discord.ButtonStyle.success,
                         label="Получить роль",
