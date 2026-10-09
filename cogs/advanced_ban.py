@@ -8,6 +8,7 @@ class AdvancedBan(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="advanced_ban", description="Оповещает пользователя в ЛС и банит его на сервере")
+    @app_commands.guild_only()
     @app_commands.checks.has_permissions(ban_members=True)
     @app_commands.describe(
         member="Пользователь, которого нужно забанить",

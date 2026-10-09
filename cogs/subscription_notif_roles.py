@@ -132,7 +132,8 @@ class RoleMenuCog(commands.Cog):
 
     # Меняем префиксную команду на современную слэш-команду
     @app_commands.command(name="sendroles", description="Отправить интерактивное меню выбора ролей в текущий канал")
-    # Ограничиваем доступ на уровне Discord: команду видят только администраторы
+    # Ограничиваем доступ на уровне Discord: команду видят только администраторы и она работает только на сервере
+    @app_commands.guild_only()
     @app_commands.default_permissions(administrator=True)
     async def send_roles_menu(self, interaction: discord.Interaction):
         """Слэш-команда для отправки панели"""
