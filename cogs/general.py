@@ -52,6 +52,25 @@ class General(commands.Cog):
             await message.reply("А вы?")
             return  # Останавливаем проверку, чтобы код ниже не выполнялся
 
+        # 2. Несколько триггеров на ОДИН ответ (Используем elif + any)
+        elif self.bot.user.mentioned_in(message) and any(p in text for p in ["кто тебя создал", "кто твой создатель", "кто тебя сотворил"]):
+            await message.reply("Я - творение великого PaxAbsoluta, хвала блистательнейшему! Как же он хорош!:pray::pray::pray:")
+            return
+
+        # 3. Снова одиночный ответ (Тоже через elif)
+        elif self.bot.user.mentioned_in(message) and "test?" in text:
+            await message.reply("Приём, на связи.")
+            return
+
+        elif self.bot.user.mentioned_in(message) and "го секс" in text:
+            await message.reply("Нет.")
+            return
+
+        # 4. Еще один блок с несколькими триггерами (Тоже через elif + any)
+        elif self.bot.user.mentioned_in(message) and any(p in text for p in ["пока", "бб", "до свидания", "я пошел"]):
+            await message.reply("До встречи! Если что, я тут. 👋")
+            return
+
         # Ищем, есть ли написанный текст в нашем списке обычных автоответов
         if text in self.auto_replies:
             await message.channel.send(self.auto_replies[text])
