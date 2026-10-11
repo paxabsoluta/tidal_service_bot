@@ -16,7 +16,7 @@ class VerificationLayoutView(ui.LayoutView):
             ui.Container(
                 ui.Section(
                     ui.TextDisplay(
-                        "## Добро пожаловать на сервер!\nНажмите на кнопку ниже, чтобы начать"),
+                        "## Добро пожаловать на сервер!\nНажмите на кнопку, чтобы начать"),
                     accessory=ui.Button( # noqa
                         style=discord.ButtonStyle.success,
                         label="СТАРТ",
