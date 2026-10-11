@@ -2,38 +2,34 @@ import discord
 from discord import ui, app_commands
 from discord.ext import commands
 
-# Укажите здесь ID роли, которую бот будет выдавать (замените на ваш реальный ID)
-ROLE_ID = 1459994385281454326
+# Укажите здесь ID ваших ролей верификации (замените на реальные ID)
+ROLE_ID_1 = 123456789012345678  # Первая основная роль
+ROLE_ID_2 = 987654321098765432  # Вторая основная роль
 
 
-class RoleLayoutView(ui.LayoutView):
+class VerificationLayoutView(ui.LayoutView):
     def __init__(self):
-        # timeout=None критически важен для вечных панелей
-        super().__init__(timeout=None)
+        super().__init__(timeout=None)  # Панель будет работать вечно
 
-        # Строим структуру Components V2 (Container -> Section -> Button)
+        # Красивое оформление Components V2 для верификации
         self.add_item(
             ui.Container(
                 ui.Section(
-                    ui.TextDisplay("## Нажмите на кнопку, чтобы начать"),
-                    # Используем стандартный ui.Button
-                    # Комментарий # type: ignore отключает ложную подсветку типов в PyCharm/VS Code
+                    ui.TextDisplay(
+                        "## Добро пожаловать на сервер!\nНажмите на кнопку ниже, чтобы начать"),
                     accessory=ui.Button( # noqa
                         style=discord.ButtonStyle.success,
                         label="СТАРТ",
-                        custom_id="btn_give_role",  # По этому ID бот узнает кнопку после перезапуска
+                        custom_id="btn_start_verification",  # Уникальный ID
                     ),  # type: ignore
                 ),
             ),
         )
 
-    # Защищенный обработчик взаимодействия низкого уровня для LayoutView
-    # Меняем название метода на встроенный interaction_check
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        # Проверяем, что нажата именно наша кнопка
-        if interaction.data.get("custom_id") == "btn_give_role":
+        if interaction.data.get("custom_id") == "btn_start_verification":
 
-            # Мгновенно уведомляем Discord, что запрос принят
+            # Мгновенно отвечаем Дискорду, чтобы кнопка не зависала
             await interaction.response.defer(ephemeral=True)
 
             guild = interaction.guild
@@ -42,51 +38,56 @@ class RoleLayoutView(ui.LayoutView):
             if not guild or not isinstance(member, discord.Member):
                 return True
 
-            role = guild.get_role(ROLE_ID)
-            if not role:
-                await interaction.followup.send("❌ Ошибка: Указанная роль не найдена на сервере.", ephemeral=True)
+            # Ищем роли на сервере
+            role1 = guild.get_role(ROLE_ID_1)
+            role2 = guild.get_role(ROLE_ID_2)
+
+            if not role1 or not role2:
+                await interaction.followup.send(
+                    "❌ Ошибка: Роли верификации не найдены на сервере. Обратитесь к администрации.", ephemeral=True)
                 return True
 
-            # Переключатель роли (выдать, если нет / забрать, если есть)
-            if role in member.roles:
-                await member.remove_roles(role)
-                await interaction.followup.send(f"✅ С вас снята роль {role.mention}!", ephemeral=True)
-            else:
-                await member.add_roles(role)
-                await interaction.followup.send(f"✅ Вам выдана роль {role.mention}!", ephemeral=True)
+            # Проверяем, пройден ли уже процесс, чтобы не спамить запросами
+            if role1 in member.roles and role2 in member.roles:
+                await interaction.followup.send("ℹ️ Вы уже успешно прошли верификацию!", ephemeral=True)
+                return True
+
+            try:
+                # Выдаем обе роли одним быстрым запросом
+                await member.add_roles(role1, role2)
+                await interaction.followup.send("🎉 Вы успешно прошли верификацию! Доступ к серверу открыт.",
+                                                ephemeral=True)
+            except discord.Forbidden:
+                await interaction.followup.send(
+                    "❌ Ошибка: У бота нет прав на выдачу этих ролей. Проверьте иерархию ролей.", ephemeral=True)
 
             return True
 
-            # Вместо super().on_interaction() просто возвращаем True
         return True
 
 
-class RoleButtonCog(commands.Cog):
+class VerificationCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    # Ограничения для слэш-команды
-    @app_commands.guild_only()  # Команда запрещена в ЛС (только для серверов)
-    @app_commands.default_permissions(administrator=True)  # Видна только администраторам сервера
-    @app_commands.command(name="setup_start_verifier", description="Установить интерактивную кнопку выдачи роли")
-    async def slash_setup_button(self, interaction: discord.Interaction):
-        # Создаем экземпляр нашей структуры
-        view = RoleLayoutView()
+    # Слэш-команда доступна только на сервере и только для Администраторов
+    @app_commands.guild_only()
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.command(name="setup_start_verifier", description="Установить кнопку верификации в текущий канал")
+    async def slash_setup_verification(self, interaction: discord.Interaction):
+        view = VerificationLayoutView()
 
-        # Отправляем невидимое подтверждение администратору
-        await interaction.response.send_message("Панель успешно создана и установлена!", ephemeral=True)
-
-        # Отправляем саму вечную панель в канал, где была вызвана команда
+        # Подтверждение для администратора
+        await interaction.response.send_message("Панель верификации успешно установлена в этом канале!", ephemeral=True)
+        # Отправка самой панели для пользователей
         await interaction.channel.send(view=view)
 
-    # Регистрация вечной панели в памяти бота при каждом его включении
+    # Перерегистрация кнопки при перезапуске бота, чтобы она не "умирала"
     @commands.Cog.listener()
     async def on_ready(self):
-        # Добавляем view в глобальный трекер бота, чтобы custom_id обрабатывался всегда
-        self.bot.add_view(RoleLayoutView())
-        print(f"[RoleButtonCog] Вечная панель RoleLayoutView успешно зарегистрирована в менеджере!")
+        self.bot.add_view(VerificationLayoutView())
+        print(f"[Verification] Вечная панель верификации успешно зарегистрирована!")
 
 
-# Обязательная точка входа для вашего авто-сканера когов
 async def setup(bot: commands.Bot):
-    await bot.add_cog(RoleButtonCog(bot))
+    await bot.add_cog(VerificationCog(bot))
