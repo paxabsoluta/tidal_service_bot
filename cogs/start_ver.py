@@ -3,8 +3,8 @@ from discord import ui, app_commands
 from discord.ext import commands
 
 # Укажите здесь ID ваших ролей верификации (замените на реальные ID)
-ROLE_ID_1 = 123456789012345678  # Первая основная роль
-ROLE_ID_2 = 987654321098765432  # Вторая основная роль
+ROLE_ID_1 = 1459994385281454326  # Первая основная роль
+ROLE_ID_2 = 1479100141230358598  # Вторая основная роль
 
 
 class VerificationLayoutView(ui.LayoutView):
